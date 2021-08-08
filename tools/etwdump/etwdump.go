@@ -9,6 +9,8 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 	"unsafe"
@@ -38,14 +40,30 @@ func getAccessString(guid string) (s string) {
 	return s
 }
 
+func parseFilter(s string) (provider string, eventIds []uint16) {
+	eventIds = make([]uint16, 0)
+	split := strings.Split(s, ":")
+	if len(split) == 2 {
+		provider = split[0]
+		for _, ss := range strings.Split(split[1], ",") {
+			if eventId, err := strconv.ParseUint(ss, 10, 16); err == nil {
+				eventIds = append(eventIds, uint16(eventId))
+			}
+		}
+	}
+	return
+}
+
 func main() {
 	var (
 		debug               bool
 		listKernelProviders bool
+		listProviders       bool
 		access              bool
 		attach              string
 		regex               string
 		outfile             string
+		filter              string
 		cregex              *regexp.Regexp
 		kernelTraceFlags    uint32
 
@@ -60,9 +78,11 @@ func main() {
 	flag.StringVar(&attach, "a", attach, "Attach to existing session(s) (comma separated)")
 	flag.StringVar(&regex, "e", regex, "Regex to filter in events")
 	flag.StringVar(&outfile, "o", outfile, "Output file")
+	flag.StringVar(&filter, "f", filter, "Filter")
 	flag.BoolVar(&access, "access", access, "List accesses to GUIDs")
 	flag.BoolVar(&debug, "debug", debug, "Enable debug messages")
 	flag.BoolVar(&listKernelProviders, "lk", listKernelProviders, "List kernel providers")
+	flag.BoolVar(&listProviders, "lp", listProviders, "List providers")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] PROVIDERS...\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "Options:\n")
@@ -83,6 +103,23 @@ func main() {
 		fmt.Println("Kernel Providers")
 		for _, pd := range etw.KernelProviders {
 			fmt.Printf("\t%s: %s\n", pd.Name, pd.GUID)
+		}
+		os.Exit(0)
+	}
+
+	if listProviders {
+		pmap := etw.EnumerateProviders()
+		names := make([]string, 0, len(pmap))
+		maxLen := 0
+		for name := range pmap {
+			if len(name) > maxLen {
+				maxLen = len(name)
+			}
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			fmt.Printf("%s%s %s\n", name, strings.Repeat(" ", maxLen-len(name)), pmap[name].GUID)
 		}
 		os.Exit(0)
 	}
@@ -148,6 +185,12 @@ func main() {
 	/** Consumer part **/
 	c := etw.NewRealTimeConsumer(context.Background())
 
+	if filter != "" {
+		provider, eventIds := parseFilter(filter)
+		log.Debugf("Filter: %s %s", provider, eventIds)
+		c.Filter.FilterIn(provider, eventIds)
+	}
+
 	// additional sessions to trace (already started)
 	if attach != "" {
 		sessions = append(sessions, strings.Split(attach, ",")...)
@@ -161,7 +204,6 @@ func main() {
 	}
 
 	c.Start()
-
 	// Signal handler to catch interrupt
 	h := make(chan os.Signal, 1)
 	signal.Notify(h, os.Interrupt)
@@ -183,20 +225,22 @@ func main() {
 		}
 	}()
 
-	log.Debug("Consuming events")
-	for e := range c.Events {
-		if b, err := json.Marshal(&e); err != nil {
-			panic(err)
-		} else {
-			if cregex != nil {
-				if cregex.Match(b) {
+	go func() {
+		log.Debug("Consuming events")
+		for e := range c.Events {
+			if b, err := json.Marshal(&e); err != nil {
+				panic(err)
+			} else {
+				if cregex != nil {
+					if cregex.Match(b) {
+						fmt.Fprintf(writer, "%s\n", string(b))
+					}
+				} else {
 					fmt.Fprintf(writer, "%s\n", string(b))
 				}
-			} else {
-				fmt.Fprintf(writer, "%s\n", string(b))
 			}
 		}
-	}
+	}()
 
 	c.Wait()
 }

@@ -2,6 +2,8 @@ package etw
 
 import "time"
 
+type EventID uint16
+
 type Event struct {
 	Event struct {
 		EventData map[string]interface{} `json:",omitempty"`

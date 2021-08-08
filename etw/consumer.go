@@ -15,12 +15,14 @@ type Consumer struct {
 	traceHandles []syscall.Handle
 	lastError    error
 
+	Filter *EventFilter
 	Events chan *Event
 }
 
 func NewRealTimeConsumer(ctx context.Context) (c *Consumer) {
 	c = &Consumer{
 		traceHandles: make([]syscall.Handle, 0, 64),
+		Filter:       NewEventFilter(),
 		Events:       make(chan *Event, 4096),
 	}
 	c.ctx, c.cancel = context.WithCancel(ctx)
@@ -41,16 +43,18 @@ func (c *Consumer) callback(er *EventRecord) uintptr {
 	// we get the consumer from user context
 	if h, err := NewEventRecordHelper(er); err == nil {
 		event := h.BuildEventWithMetadata()
-		if err := h.ParseProperties(event); err != nil {
-			c.lastError = err
-		} else {
-			// lock to prevent sending on a closed channel when stopping
-			c.Lock()
-			// we have to check again here as the lock introduced delay
-			if c.ctx.Err() == nil {
-				c.Events <- event
+		if c.Filter.Match(event) {
+			if err := h.ParseProperties(event); err != nil {
+				c.lastError = err
+			} else {
+				// lock to prevent sending on a closed channel when stopping
+				c.Lock()
+				// we have to check again here as the lock introduced delay
+				if c.ctx.Err() == nil {
+					c.Events <- event
+				}
+				c.Unlock()
 			}
-			c.Unlock()
 		}
 	}
 	return 0
@@ -124,7 +128,9 @@ func (c *Consumer) Stop() (lastErr error) {
 }
 
 func (c *Consumer) Wait() {
-	for c.ctx.Err() == nil {
-		time.Sleep(250 * time.Millisecond)
+	if len(c.traceHandles) > 0 {
+		for c.ctx.Err() == nil {
+			time.Sleep(250 * time.Millisecond)
+		}
 	}
 }

@@ -16,6 +16,35 @@ var (
 	hostname, _ = os.Hostname()
 )
 
+type ProviderMap map[string]Provider
+
+type Provider struct {
+	GUID string
+	Name string
+}
+
+func EnumerateProviders() (m ProviderMap) {
+	var buf *ProviderEnumerationInfo
+	size := uint32(1)
+	for {
+		tmp := make([]byte, size)
+		buf = (*ProviderEnumerationInfo)(unsafe.Pointer(&tmp[0]))
+		if err := TdhEnumerateProviders(buf, &size); err != ERROR_INSUFFICIENT_BUFFER {
+			break
+		}
+	}
+	m = make(ProviderMap)
+	startProvEnumInfo := uintptr(unsafe.Pointer(buf))
+	it := uintptr(unsafe.Pointer(&buf.TraceProviderInfoArray[0]))
+	for i := uintptr(0); i < uintptr(buf.NumberOfProviders); i++ {
+		ptpi := (*TraceProviderInfo)(unsafe.Pointer(it + i*unsafe.Sizeof(buf.TraceProviderInfoArray[0])))
+		guid := ptpi.ProviderGuid.String()
+		name := UTF16AtOffsetToString(startProvEnumInfo, uintptr(ptpi.ProviderNameOffset))
+		m[name] = Provider{guid, name}
+	}
+	return
+}
+
 func NewEvent() (e *Event) {
 	e = &Event{}
 	e.Event.EventData = make(map[string]interface{})
