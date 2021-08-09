@@ -6,27 +6,33 @@ import (
 	"github.com/0xrawsec/golang-utils/datastructs"
 )
 
-type EventFilter struct {
+type EventFilter interface {
+	Match(*Event) bool
+}
+
+type AllInFilter struct{}
+
+func (f *AllInFilter) Match(*Event) bool {
+	return true
+}
+
+type BaseFilter struct {
 	sync.RWMutex
 	m map[string]*datastructs.Set
 }
 
-func NewEventFilter() *EventFilter {
-	return &EventFilter{m: make(map[string]*datastructs.Set)}
-}
-
-func (f *EventFilter) FilterIn(provider string, eventIds []uint16) {
+func (f *BaseFilter) FilterIn(key string, eventIds []uint16) {
 	f.Lock()
 	defer f.Unlock()
 	s := datastructs.ToInterfaceSlice(eventIds)
-	if _, ok := f.m[provider]; ok {
-		f.m[provider].Add(s...)
+	if _, ok := f.m[key]; ok {
+		f.m[key].Add(s...)
 	} else {
-		f.m[provider] = datastructs.NewInitSet(datastructs.ToInterfaceSlice(eventIds)...)
+		f.m[key] = datastructs.NewInitSet(datastructs.ToInterfaceSlice(eventIds)...)
 	}
 }
 
-func (f *EventFilter) Match(e *Event) bool {
+func (f *BaseFilter) MatchKey(key string, e *Event) bool {
 	f.RLock()
 	defer f.RUnlock()
 	// Filter is empty
@@ -34,7 +40,7 @@ func (f *EventFilter) Match(e *Event) bool {
 		return true
 	}
 
-	if eventids, ok := f.m[e.Event.System.Provider.Guid]; ok {
+	if eventids, ok := f.m[key]; ok {
 		if eventids.Len() > 0 {
 			return eventids.Contains(e.Event.System.EventID)
 		}
@@ -42,4 +48,32 @@ func (f *EventFilter) Match(e *Event) bool {
 	}
 
 	return false
+}
+
+type ProviderFilter struct {
+	BaseFilter
+}
+
+func NewEventFilter() *ProviderFilter {
+	f := ProviderFilter{}
+	f.m = make(map[string]*datastructs.Set)
+	return &f
+}
+
+func (f *ProviderFilter) Match(e *Event) bool {
+	return f.MatchKey(e.Event.System.Provider.Guid, e)
+}
+
+type ChannelFilter struct {
+	BaseFilter
+}
+
+func NewChannelFilter() *ChannelFilter {
+	f := ChannelFilter{}
+	f.m = make(map[string]*datastructs.Set)
+	return &f
+}
+
+func (f *ChannelFilter) Match(e *Event) bool {
+	return f.MatchKey(e.Event.System.Channel, e)
 }

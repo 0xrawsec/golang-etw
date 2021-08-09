@@ -5,24 +5,23 @@ import (
 	"fmt"
 	"sync"
 	"syscall"
-	"time"
 )
 
 type Consumer struct {
-	sync.Mutex
+	sync.WaitGroup
 	ctx          context.Context
 	cancel       context.CancelFunc
 	traceHandles []syscall.Handle
 	lastError    error
 
-	Filter *EventFilter
+	Filter EventFilter
 	Events chan *Event
 }
 
 func NewRealTimeConsumer(ctx context.Context) (c *Consumer) {
 	c = &Consumer{
 		traceHandles: make([]syscall.Handle, 0, 64),
-		Filter:       NewEventFilter(),
+		Filter:       &AllInFilter{},
 		Events:       make(chan *Event, 4096),
 	}
 	c.ctx, c.cancel = context.WithCancel(ctx)
@@ -47,13 +46,10 @@ func (c *Consumer) callback(er *EventRecord) uintptr {
 			if err := h.ParseProperties(event); err != nil {
 				c.lastError = err
 			} else {
-				// lock to prevent sending on a closed channel when stopping
-				c.Lock()
 				// we have to check again here as the lock introduced delay
 				if c.ctx.Err() == nil {
 					c.Events <- event
 				}
-				c.Unlock()
 			}
 		}
 	}
@@ -74,7 +70,9 @@ func (c *Consumer) newRealTimeLogfile() (loggerInfo EventTraceLogfile) {
 func (c *Consumer) Start() {
 	for i := range c.traceHandles {
 		i := i
+		c.Add(1)
 		go func() {
+			defer c.Done()
 			ProcessTrace(&c.traceHandles[i], 1, nil, nil)
 		}()
 	}
@@ -112,12 +110,12 @@ func (c *Consumer) Err() error {
 }
 
 func (c *Consumer) Stop() (lastErr error) {
-	c.Lock()
-	defer c.Unlock()
 	// calling context cancel function
 	c.cancel()
 	// closing consumer channel
 	close(c.Events)
+	// we wait the traces finish their work
+	c.Wait()
 	// closing trace handles
 	for _, h := range c.traceHandles {
 		if err := CloseTrace(h); err != nil {
@@ -125,12 +123,4 @@ func (c *Consumer) Stop() (lastErr error) {
 		}
 	}
 	return
-}
-
-func (c *Consumer) Wait() {
-	if len(c.traceHandles) > 0 {
-		for c.ctx.Err() == nil {
-			time.Sleep(250 * time.Millisecond)
-		}
-	}
 }

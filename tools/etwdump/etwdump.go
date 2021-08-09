@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -54,16 +55,38 @@ func parseFilter(s string) (provider string, eventIds []uint16) {
 	return
 }
 
+func unsafeRandomGuid() *etw.GUID {
+	// not safe as determininstic
+	rand.Seed(time.Now().UnixNano())
+	return &etw.GUID{
+		Data1: rand.Uint32(),
+		Data2: uint16(rand.Uint32()),
+		Data3: uint16(rand.Uint32()),
+		Data4: [8]byte{
+			uint8(rand.Uint32()),
+			uint8(rand.Uint32()),
+			uint8(rand.Uint32()),
+			uint8(rand.Uint32()),
+			uint8(rand.Uint32()),
+			uint8(rand.Uint32()),
+			uint8(rand.Uint32()),
+			uint8(rand.Uint32()),
+		},
+	}
+}
+
 func main() {
 	var (
 		debug               bool
 		listKernelProviders bool
 		listProviders       bool
 		access              bool
+		noout               bool
 		attach              string
 		regex               string
 		outfile             string
 		filter              string
+		autologger          string
 		cregex              *regexp.Regexp
 		kernelTraceFlags    uint32
 
@@ -79,10 +102,12 @@ func main() {
 	flag.StringVar(&regex, "e", regex, "Regex to filter in events")
 	flag.StringVar(&outfile, "o", outfile, "Output file")
 	flag.StringVar(&filter, "f", filter, "Filter")
+	flag.StringVar(&autologger, "autologger", autologger, "Creates autologger and enables providers")
 	flag.BoolVar(&access, "access", access, "List accesses to GUIDs")
 	flag.BoolVar(&debug, "debug", debug, "Enable debug messages")
 	flag.BoolVar(&listKernelProviders, "lk", listKernelProviders, "List kernel providers")
 	flag.BoolVar(&listProviders, "lp", listProviders, "List providers")
+	flag.BoolVar(&noout, "noout", noout, "Do not write logs")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] PROVIDERS...\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "Options:\n")
@@ -146,6 +171,36 @@ func main() {
 		}
 	}
 
+	if autologger != "" {
+		a := etw.AutoLogger{
+			Name:        autologger,
+			Guid:        unsafeRandomGuid().String(),
+			LogFileMode: 0x8001c0,
+		}
+
+		if !a.Exists() {
+			a.Create()
+		}
+
+		for _, provider := range flag.Args() {
+			var guid *etw.GUID
+			var err error
+			if etw.IsKernelProvider(provider) {
+				continue
+
+			}
+			if guid, err = etw.GUIDFromString(provider); err != nil {
+				log.LogErrorAndExit(fmt.Errorf("Invalid provider GUID (%s), do not enabling", provider))
+			}
+
+			if err = a.EnableProvider(guid.String(), 0, 255); err != nil {
+				log.LogErrorAndExit(fmt.Errorf("Failed to enable provider: %s", err))
+			}
+		}
+
+		os.Exit(0)
+	}
+
 	// We create a private producer
 	p := etw.NewRealTimeProducer(sessionName)
 
@@ -188,7 +243,9 @@ func main() {
 	if filter != "" {
 		provider, eventIds := parseFilter(filter)
 		log.Debugf("Filter: %s %s", provider, eventIds)
-		c.Filter.FilterIn(provider, eventIds)
+		f := etw.NewEventFilter()
+		f.FilterIn(provider, eventIds)
+		c.Filter = f
 	}
 
 	// additional sessions to trace (already started)
@@ -233,10 +290,14 @@ func main() {
 			} else {
 				if cregex != nil {
 					if cregex.Match(b) {
-						fmt.Fprintf(writer, "%s\n", string(b))
+						if !noout {
+							fmt.Fprintf(writer, "%s\n", string(b))
+						}
 					}
 				} else {
-					fmt.Fprintf(writer, "%s\n", string(b))
+					if !noout {
+						fmt.Fprintf(writer, "%s\n", string(b))
+					}
 				}
 			}
 		}
