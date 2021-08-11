@@ -47,9 +47,9 @@ func EnumerateProviders() (m ProviderMap) {
 
 func NewEvent() (e *Event) {
 	e = &Event{}
-	e.Event.EventData = make(map[string]interface{})
-	e.Event.UserData = make(map[string]interface{})
-	e.Event.ExtendedData = make([]string, 0)
+	e.EventData = make(map[string]interface{})
+	e.UserData = make(map[string]interface{})
+	e.ExtendedData = make([]string, 0)
 	return e
 }
 
@@ -223,30 +223,30 @@ func (e *EventRecordHelper) ParseExtendedData(i uint16) string {
 func (e *EventRecordHelper) BuildEventWithMetadata() (event *Event) {
 	event = NewEvent()
 
-	event.Event.System.Computer = hostname
-	event.Event.System.Execution.ProcessID = e.Event.EventHeader.ProcessId
-	event.Event.System.Execution.ThreadID = e.Event.EventHeader.ThreadId
-	event.Event.System.EventID = e.TraceInfo.EventID()
-	event.Event.System.Channel = e.TraceInfo.ChannelName()
-	event.Event.System.Provider.Guid = e.TraceInfo.ProviderGuid.String()
-	event.Event.System.Provider.Name = e.TraceInfo.ProviderName()
-	event.Event.System.Level.Value = e.TraceInfo.EventDescriptor.Level
-	event.Event.System.Level.Name = e.TraceInfo.LevelName()
-	event.Event.System.Opcode.Value = e.TraceInfo.EventDescriptor.Opcode
-	event.Event.System.Opcode.Name = e.TraceInfo.OpcodeName()
-	event.Event.System.Keywords.Value = e.TraceInfo.EventDescriptor.Keyword
-	event.Event.System.Keywords.Name = e.TraceInfo.KeywordName()
-	event.Event.System.TimeCreated.SystemTime = e.Event.EventHeader.UTCTimeStamp()
+	event.System.Computer = hostname
+	event.System.Execution.ProcessID = e.Event.EventHeader.ProcessId
+	event.System.Execution.ThreadID = e.Event.EventHeader.ThreadId
+	event.System.EventID = e.TraceInfo.EventID()
+	event.System.Channel = e.TraceInfo.ChannelName()
+	event.System.Provider.Guid = e.TraceInfo.ProviderGuid.String()
+	event.System.Provider.Name = e.TraceInfo.ProviderName()
+	event.System.Level.Value = e.TraceInfo.EventDescriptor.Level
+	event.System.Level.Name = e.TraceInfo.LevelName()
+	event.System.Opcode.Value = e.TraceInfo.EventDescriptor.Opcode
+	event.System.Opcode.Name = e.TraceInfo.OpcodeName()
+	event.System.Keywords.Value = e.TraceInfo.EventDescriptor.Keyword
+	event.System.Keywords.Name = e.TraceInfo.KeywordName()
+	event.System.TimeCreated.SystemTime = e.Event.EventHeader.UTCTimeStamp()
 
 	if e.TraceInfo.IsMof() {
 		var eventType string
 		if t, ok := MofClassMapping[e.TraceInfo.EventGUID.Data1]; ok {
-			eventType = fmt.Sprintf("%s/%s", t.Name, event.Event.System.Opcode.Name)
+			eventType = fmt.Sprintf("%s/%s", t.Name, event.System.Opcode.Name)
 		} else {
-			eventType = fmt.Sprintf("UnknownClass/%s", event.Event.System.Opcode.Name)
+			eventType = fmt.Sprintf("UnknownClass/%s", event.System.Opcode.Name)
 		}
-		event.Event.System.EventType = eventType
-		event.Event.System.EventGuid = e.TraceInfo.EventGUID.String()
+		event.System.EventType = eventType
+		event.System.EventGuid = e.TraceInfo.EventGUID.String()
 	}
 
 	return
@@ -256,10 +256,10 @@ func (e *EventRecordHelper) ParseProperties(event *Event) (err error) {
 	var arraySize uint16
 	var value, name string
 
-	eventData := event.Event.EventData
+	eventData := event.EventData
 
 	if (e.TraceInfo.Flags & TEMPLATE_USER_DATA) == TEMPLATE_USER_DATA {
-		eventData = event.Event.UserData
+		eventData = event.UserData
 	}
 
 	for i := uint32(0); i < e.TraceInfo.TopLevelPropertyCount; i++ {

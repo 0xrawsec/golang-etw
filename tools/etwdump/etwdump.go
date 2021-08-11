@@ -20,6 +20,10 @@ import (
 	"github.com/0xrawsec/golang-utils/log"
 )
 
+type EventWrapper struct {
+	Event *etw.Event
+}
+
 func getAccessString(guid string) (s string) {
 	var err error
 
@@ -285,7 +289,7 @@ func main() {
 	go func() {
 		log.Debug("Consuming events")
 		for e := range c.Events {
-			if b, err := json.Marshal(&e); err != nil {
+			if b, err := json.Marshal(EventWrapper{e}); err != nil {
 				panic(err)
 			} else {
 				if cregex != nil {

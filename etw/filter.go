@@ -42,7 +42,7 @@ func (f *BaseFilter) MatchKey(key string, e *Event) bool {
 
 	if eventids, ok := f.m[key]; ok {
 		if eventids.Len() > 0 {
-			return eventids.Contains(e.Event.System.EventID)
+			return eventids.Contains(e.System.EventID)
 		}
 		return true
 	}
@@ -61,7 +61,7 @@ func NewEventFilter() *ProviderFilter {
 }
 
 func (f *ProviderFilter) Match(e *Event) bool {
-	return f.MatchKey(e.Event.System.Provider.Guid, e)
+	return f.MatchKey(e.System.Provider.Guid, e)
 }
 
 type ChannelFilter struct {
@@ -75,5 +75,5 @@ func NewChannelFilter() *ChannelFilter {
 }
 
 func (f *ChannelFilter) Match(e *Event) bool {
-	return f.MatchKey(e.Event.System.Channel, e)
+	return f.MatchKey(e.System.Channel, e)
 }
