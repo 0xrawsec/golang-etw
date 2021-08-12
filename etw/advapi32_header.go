@@ -353,6 +353,10 @@ func NewRealTimeEventTraceSessionProperties(logSessionName string) *EventTracePr
 	sessionProperties.Wnode.Flags = WNODE_FLAG_ALL_DATA
 	sessionProperties.LogFileMode = EVENT_TRACE_REAL_TIME_MODE
 	sessionProperties.LogFileNameOffset = 0
+	// ETW event can be up to 64KB size so if the buffer size is not at least
+	// big enough to contain such an event, the event will be lost
+	// source: https://docs.microsoft.com/en-us/message-analyzer/specifying-advanced-etw-session-configuration-settings
+	sessionProperties.BufferSize = 64
 	sessionProperties.LoggerNameOffset = uint32(unsafe.Sizeof(EventTraceProperties{}))
 
 	return sessionProperties
