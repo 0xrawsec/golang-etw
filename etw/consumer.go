@@ -111,10 +111,7 @@ func (c *Consumer) Err() error {
 	return c.lastError
 }
 
-func (c *Consumer) StopNoWait() (lastErr error) {
-	// calling context cancel function
-	c.cancel()
-	// closing consumer channel
+func (c *Consumer) Close(wait bool) (lastErr error) {
 	close(c.Events)
 	// closing trace handles
 	for _, h := range c.traceHandles {
@@ -123,21 +120,14 @@ func (c *Consumer) StopNoWait() (lastErr error) {
 			lastErr = err
 		}
 	}
+	if wait {
+		c.Wait()
+	}
 	return
 }
 
-func (c *Consumer) Stop() (lastErr error) {
+func (c *Consumer) Stop() (err error) {
 	// calling context cancel function
 	c.cancel()
-	// closing consumer channel
-	close(c.Events)
-	// we wait the traces finish their work
-	c.Wait()
-	// closing trace handles
-	for _, h := range c.traceHandles {
-		if err := CloseTrace(h); err != nil {
-			lastErr = err
-		}
-	}
-	return
+	return c.Close(true)
 }
