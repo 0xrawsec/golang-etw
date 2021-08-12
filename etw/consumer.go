@@ -111,6 +111,21 @@ func (c *Consumer) Err() error {
 	return c.lastError
 }
 
+func (c *Consumer) StopNoWait() (lastErr error) {
+	// calling context cancel function
+	c.cancel()
+	// closing consumer channel
+	close(c.Events)
+	// closing trace handles
+	for _, h := range c.traceHandles {
+		// if we don't wait for traces ERROR_CTX_CLOSE_PENDING is a valid error
+		if err := CloseTrace(h); err != nil && err != ERROR_CTX_CLOSE_PENDING {
+			lastErr = err
+		}
+	}
+	return
+}
+
 func (c *Consumer) Stop() (lastErr error) {
 	// calling context cancel function
 	c.cancel()
