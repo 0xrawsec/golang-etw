@@ -38,6 +38,8 @@ func (a *AutoLogger) Create() (err error) {
 		{a.Path(), "GUID", regSz, a.Guid},
 		{a.Path(), "Start", regDword, "0x1"},
 		{a.Path(), "LogFileMode", regDword, hexStr(a.LogFileMode)},
+		// ETW event can be up to 64KB so buffer needs to be at least this size
+		{a.Path(), "BufferSize", regDword, hexStr(64)},
 	}
 
 	for _, args := range sargs {
@@ -57,8 +59,6 @@ func (a *AutoLogger) EnableProvider(guid string, matchAnyKeyword uint64, enableL
 		{path, "Enabled", regDword, "0x1"},
 		{path, "MatchAnyKeyword", regQword, hexStr(matchAnyKeyword)},
 		{path, "EnableLevel", regDword, hexStr(enableLevel)},
-		// ETW event can be up to 64KB so buffer needs to be at least this size
-		{path, "BufferSize", regDword, hexStr(64)},
 	}
 
 	for _, args := range sargs {
