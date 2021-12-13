@@ -44,23 +44,35 @@ func TestGUID(t *testing.T) {
 }
 
 func TestProducerConsumer(t *testing.T) {
+	var prov Provider
+	var err error
+
 	eventCount := 0
 
-	p := NewRealTimeProducer("GolangTest")
-	p.EnableVerboseProvider(SysmonProvider)
-	if err := p.Start(); err != nil {
+	prod := NewRealTimeProducer("GolangTest")
+
+	if prov, err = ProviderFromString(SysmonProvider + ":0xff"); err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	if err := prod.EnableProvider(prov); err != nil {
+		t.Error(err)
+	}
+
+	if err := prod.Start(); err != nil {
 		t.Errorf("Failed to start trace: %s", err)
 		t.FailNow()
 	}
-	if !p.Started() {
+	if !prod.Started() {
 		t.Errorf("Producer should be running")
 		t.FailNow()
 	}
-	defer p.Stop()
+	defer prod.Stop()
 
 	c := NewRealTimeConsumer(context.Background())
 
-	if err := c.OpenTraces(p.TraceName, "Eventlog-Security"); err != nil {
+	if err := c.OpenTraces(prod.TraceName, "Eventlog-Security"); err != nil {
 		t.Error(err)
 		c.Stop()
 		t.FailNow()
