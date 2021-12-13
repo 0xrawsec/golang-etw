@@ -1,10 +1,10 @@
-# golang-etw
+Full Golang (no CGO) library to play with ETW logs
 
-# ETW documentation
+## ETW documentation
 
-[Advanced ETW Session Configuration:](https://docs.microsoft.com/en-us/message-analyzer/specifying-advanced-etw-session-configuration-settings)
+[Advanced ETW Session Configuration](https://docs.microsoft.com/en-us/message-analyzer/specifying-advanced-etw-session-configuration-settings)
 
-# Providers
-ETW Explorer: https://github.com/zodiacon/EtwExplorer
+## Providers
+[ETW Explorer](https://github.com/zodiacon/EtwExplorer)
 
-https://github.com/repnz/etw-providers-docs
+[ETW Providers](https://github.com/repnz/etw-providers-docs)
