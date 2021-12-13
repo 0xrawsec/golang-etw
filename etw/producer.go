@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package etw
@@ -44,7 +45,8 @@ func (p *RealTimeSession) Started() bool {
 	return p.sessionHandle != 0
 }
 
-func (p *RealTimeSession) EnableProvider(sguid string, level uint8, keywords uint64) (err error) {
+//func (p *RealTimeSession) EnableProvider(sguid string, level uint8, keywords uint64) (err error) {
+func (p *RealTimeSession) EnableProvider(prov Provider) (err error) {
 	var guid *GUID
 
 	// If the trace is not started yet we have to start it
@@ -55,7 +57,7 @@ func (p *RealTimeSession) EnableProvider(sguid string, level uint8, keywords uin
 		}
 	}
 
-	if guid, err = GUIDFromString(sguid); err != nil {
+	if guid, err = GUIDFromString(prov.GUID); err != nil {
 		return
 	}
 
@@ -67,22 +69,18 @@ func (p *RealTimeSession) EnableProvider(sguid string, level uint8, keywords uin
 		p.sessionHandle,
 		guid,
 		EVENT_CONTROL_CODE_ENABLE_PROVIDER,
-		level,
-		keywords,
-		0,
+		uint8(prov.EnableLevel),
+		prov.MatchAnyKeyword,
+		prov.MatchAllKeyword,
 		0,
 		&params,
 	); err != nil {
 		return
 	}
 
-	p.Providers = append(p.Providers, sguid)
+	p.Providers = append(p.Providers, prov.GUID)
 
 	return
-}
-
-func (p *RealTimeSession) EnableVerboseProvider(sguid string) (err error) {
-	return p.EnableProvider(sguid, MaxLevel, AllKeywords)
 }
 
 func (p *RealTimeSession) Start() (err error) {

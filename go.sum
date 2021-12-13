@@ -1,5 +1,7 @@
 github.com/0xrawsec/golang-utils v1.2.0 h1:wzPUcLLcx2NPV9txupkn7+KXOUuVG4zaKZ/Y5s7GJZQ=
 github.com/0xrawsec/golang-utils v1.2.0/go.mod h1:DADTtCFY10qXjWmUVhhJqQIZdSweaHH4soYUDEi8mj0=
+github.com/0xrawsec/golang-utils v1.3.1 h1:jjiBzsxzcQPkmEV5KONJY4OnCoqTTW1eQMJcpSdk3hw=
+github.com/0xrawsec/golang-utils v1.3.1/go.mod h1:DADTtCFY10qXjWmUVhhJqQIZdSweaHH4soYUDEi8mj0=
 github.com/kr/fs v0.1.0/go.mod h1:FFnZGqtBN9Gxj7eW1uZ42v5BccTP0vu6NEaFoC2HwRg=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/sftp v1.10.0/go.mod h1:NxmoDg/QLVWluQDUYG7XBZTLUpKeFa8e3aMf1BfjyHk=

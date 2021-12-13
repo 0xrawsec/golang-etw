@@ -14,7 +14,7 @@ const (
 	// providers
 	SysmonProvider           = "{5770385F-C22A-43E0-BF4C-06F5698FFBD9}"
 	KernelMemoryProviderName = "{D1D93EF7-E1F2-4F45-9943-03D245FE6C00}"
-
+	KernelFileProviderName   = "Microsoft-Windows-Kernel-File"
 	// sessions
 	EventlogSecurity = "Eventlog-Security"
 )
@@ -150,4 +150,30 @@ func TestKernelSession(t *testing.T) {
 	delta := time.Now().Sub(start)
 	eps := float64(eventCount) / delta.Seconds()
 	t.Logf("Received: %d events in %s (%d EPS)", eventCount, delta, int(eps))
+}
+
+func TestParseProvider(t *testing.T) {
+
+	if _, err := ProviderFromString(KernelFileProviderName); err != nil {
+		t.Error(err)
+	}
+
+	if p, err := ProviderFromString(KernelFileProviderName + ":255"); err != nil {
+		t.Error(err)
+	} else if p.EnableLevel != 255 {
+		t.Errorf("Unexpected value")
+	}
+
+	if p, err := ProviderFromString(KernelFileProviderName + ":255:4242"); err != nil {
+		t.Error(err)
+	} else if p.EnableLevel != 255 || p.MatchAnyKeyword != 4242 {
+		t.Errorf("Unexpected value")
+	}
+
+	if p, err := ProviderFromString(KernelFileProviderName + ":255:4242:1337"); err != nil {
+		t.Error(err)
+	} else if p.EnableLevel != 255 || p.MatchAnyKeyword != 4242 || p.MatchAllKeyword != 1337 {
+		t.Errorf("Unexpected value")
+	}
+
 }

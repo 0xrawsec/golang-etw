@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package etw
@@ -6,6 +7,8 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strconv"
+	"strings"
 	"syscall"
 	"unsafe"
 
@@ -13,14 +16,60 @@ import (
 )
 
 var (
+	providers   ProviderMap
 	hostname, _ = os.Hostname()
 )
 
-type ProviderMap map[string]Provider
+type ProviderMap map[string]*Provider
 
 type Provider struct {
-	GUID string
-	Name string
+	GUID            string
+	Name            string
+	EnableLevel     uint32
+	MatchAnyKeyword uint64
+	MatchAllKeyword uint64
+}
+
+// (Name|GUID):EnableLevel:MatchAnyKeyword:MatchAllKeyword
+func ProviderFromString(s string) (p Provider, err error) {
+	var u uint64
+
+	split := strings.Split(s, ":")
+	for i := 0; i < len(split); i++ {
+		switch i {
+		case 0:
+			p = ResolveProvider(split[i])
+			if p.IsZero() {
+				err = fmt.Errorf("Provider not found: %s", split[i])
+				return
+			}
+		case 1:
+			if u, err = strconv.ParseUint(split[i], 0, 32); err != nil {
+				return
+			} else {
+				p.EnableLevel = uint32(u)
+			}
+		case 2:
+			if u, err = strconv.ParseUint(split[i], 0, 64); err != nil {
+				return
+			} else {
+				p.MatchAnyKeyword = u
+			}
+		case 3:
+			if u, err = strconv.ParseUint(split[i], 0, 64); err != nil {
+				return
+			} else {
+				p.MatchAllKeyword = u
+			}
+		default:
+			return
+		}
+	}
+	return
+}
+
+func (p *Provider) IsZero() bool {
+	return p.GUID == "" && p.Name == ""
 }
 
 func EnumerateProviders() (m ProviderMap) {
@@ -40,8 +89,30 @@ func EnumerateProviders() (m ProviderMap) {
 		ptpi := (*TraceProviderInfo)(unsafe.Pointer(it + i*unsafe.Sizeof(buf.TraceProviderInfoArray[0])))
 		guid := ptpi.ProviderGuid.String()
 		name := UTF16AtOffsetToString(startProvEnumInfo, uintptr(ptpi.ProviderNameOffset))
-		m[name] = Provider{guid, name}
+		p := &Provider{GUID: guid, Name: name}
+		m[name] = p
+		m[guid] = p
 	}
+	return
+}
+
+// ResolveProvider return a Provider structure given a GUID or
+// a provider name as input
+func ResolveProvider(s string) (p Provider) {
+
+	if providers == nil {
+		providers = EnumerateProviders()
+	}
+
+	if g, err := GUIDFromString(s); err == nil {
+		s = g.String()
+	}
+
+	if prov, ok := providers[s]; ok {
+		// search provider by name
+		return *prov
+	}
+
 	return
 }
 

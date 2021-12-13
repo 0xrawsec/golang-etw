@@ -180,6 +180,8 @@ func main() {
 			Name:        autologger,
 			Guid:        unsafeRandomGuid().String(),
 			LogFileMode: 0x8001c0,
+			BufferSize:  64,
+			ClockType:   2,
 		}
 
 		if !a.Exists() {
@@ -187,18 +189,19 @@ func main() {
 		}
 
 		for _, provider := range flag.Args() {
-			var guid *etw.GUID
+			var p etw.Provider
 			var err error
 			if etw.IsKernelProvider(provider) {
 				continue
 
 			}
-			if guid, err = etw.GUIDFromString(provider); err != nil {
-				log.LogErrorAndExit(fmt.Errorf("Invalid provider GUID (%s), do not enabling", provider))
+
+			if p, err = etw.ProviderFromString(provider); err != nil {
+				log.Abort(1, err)
 			}
 
-			if err = a.EnableProvider(guid.String(), 0, 255); err != nil {
-				log.LogErrorAndExit(fmt.Errorf("Failed to enable provider: %s", err))
+			if err = a.EnableProvider(p); err != nil {
+				log.Abort(1, fmt.Errorf("Failed to enable provider: %s", err))
 			}
 		}
 
@@ -209,15 +212,19 @@ func main() {
 	p := etw.NewRealTimeProducer(sessionName)
 
 	// We process the providers provided in the command line
-	for _, provider := range flag.Args() {
+	for _, provStr := range flag.Args() {
 		// this is a kernel provider
-		if etw.IsKernelProvider(provider) {
-			log.Debugf("Enabling kernel provider: %s", provider)
-			kernelTraceFlags |= etw.GetKernelProviderFlags(provider)
+		if etw.IsKernelProvider(provStr) {
+			log.Debugf("Enabling kernel provider: %s", provStr)
+			kernelTraceFlags |= etw.GetKernelProviderFlags(provStr)
 		} else {
-			log.Debugf("Enabling provider: %s", provider)
-			if err := p.EnableVerboseProvider(provider); err != nil {
-				log.Errorf("Failed to enable provider %s: %s", provider, err)
+			if prov, err := etw.ProviderFromString(provStr); err != nil {
+				log.Errorf("Failed to parse provider: %s", provStr)
+			} else {
+				log.Debugf("Enabling provider: %s", provStr)
+				if err := p.EnableProvider(prov); err != nil {
+					log.Errorf("Failed to enable provider %s: %s", provStr, err)
+				}
 			}
 		}
 	}

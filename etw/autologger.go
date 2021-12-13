@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package etw
@@ -18,6 +19,10 @@ const (
 	regSz    = "REG_SZ"
 )
 
+var (
+	DefaultAutologgerEnableLevel = 255
+)
+
 func hexStr(i interface{}) string {
 	return fmt.Sprintf("0x%x", i)
 }
@@ -26,6 +31,8 @@ type AutoLogger struct {
 	Name        string
 	Guid        string
 	LogFileMode uint32
+	BufferSize  uint32
+	ClockType   uint32
 }
 
 func (a *AutoLogger) Path() string {
@@ -39,7 +46,8 @@ func (a *AutoLogger) Create() (err error) {
 		{a.Path(), "Start", regDword, "0x1"},
 		{a.Path(), "LogFileMode", regDword, hexStr(a.LogFileMode)},
 		// ETW event can be up to 64KB so buffer needs to be at least this size
-		{a.Path(), "BufferSize", regDword, hexStr(64)},
+		{a.Path(), "BufferSize", regDword, hexStr(a.BufferSize)},
+		{a.Path(), "ClockType", regDword, hexStr(a.ClockType)},
 	}
 
 	for _, args := range sargs {
@@ -51,14 +59,22 @@ func (a *AutoLogger) Create() (err error) {
 	return
 }
 
-func (a *AutoLogger) EnableProvider(guid string, matchAnyKeyword uint64, enableLevel uint8) (err error) {
-	path := fmt.Sprintf(`%s\%s`, a.Path(), guid)
+func (a *AutoLogger) EnableProvider(p Provider) (err error) {
+	path := fmt.Sprintf(`%s\%s`, a.Path(), p.GUID)
 
-	sargs := [][]string{
-		// ETW trace parameters
-		{path, "Enabled", regDword, "0x1"},
-		{path, "MatchAnyKeyword", regQword, hexStr(matchAnyKeyword)},
-		{path, "EnableLevel", regDword, hexStr(enableLevel)},
+	sargs := [][]string{}
+
+	// ETW trace parameters
+	if p.Name != "" {
+		sargs = append(sargs, []string{path, "ProviderName", regSz, p.Name})
+	}
+
+	sargs = append(sargs, []string{path, "Enabled", regDword, "0x1"})
+	sargs = append(sargs, []string{path, "EnableLevel", regDword, hexStr(p.EnableLevel)})
+	sargs = append(sargs, []string{path, "MatchAnyKeyword", regQword, hexStr(p.MatchAnyKeyword)})
+
+	if p.MatchAnyKeyword != 0 {
+		sargs = append(sargs, []string{path, "MatchAllKeyword", regQword, hexStr(p.MatchAllKeyword)})
 	}
 
 	for _, args := range sargs {
