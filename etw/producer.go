@@ -69,7 +69,7 @@ func (p *RealTimeSession) EnableProvider(prov Provider) (err error) {
 		p.sessionHandle,
 		guid,
 		EVENT_CONTROL_CODE_ENABLE_PROVIDER,
-		uint8(prov.EnableLevel),
+		prov.EnableLevel,
 		prov.MatchAnyKeyword,
 		prov.MatchAllKeyword,
 		0,

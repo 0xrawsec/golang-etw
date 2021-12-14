@@ -19,10 +19,6 @@ const (
 	regSz    = "REG_SZ"
 )
 
-var (
-	DefaultAutologgerEnableLevel = 255
-)
-
 func hexStr(i interface{}) string {
 	return fmt.Sprintf("0x%x", i)
 }
