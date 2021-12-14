@@ -29,11 +29,9 @@ type Provider struct {
 // ProviderFromString parses a string and returns a provider.
 // The returned provider is initialized from DefaultProvider.
 // Format (Name|GUID):EnableLevel:MatchAnyKeyword:MatchAllKeyword
-func ProviderFromString(s string) (Provider, error) {
+func ProviderFromString(s string) (p Provider, err error) {
 	var u uint64
-	var err error
 
-	p := DefaultProvider
 	split := strings.Split(s, ":")
 	for i := 0; i < len(split); i++ {
 		chunk := split[i]
@@ -42,14 +40,14 @@ func ProviderFromString(s string) (Provider, error) {
 			p = ResolveProvider(chunk)
 			if p.IsZero() {
 				err = fmt.Errorf("Provider not found: %s", chunk)
-				return p, err
+				return
 			}
 		case 1:
 			if chunk == "" {
 				break
 			}
 			if u, err = strconv.ParseUint(chunk, 0, 8); err != nil {
-				return p, err
+				return
 			} else {
 				p.EnableLevel = uint8(u)
 			}
@@ -58,7 +56,7 @@ func ProviderFromString(s string) (Provider, error) {
 				break
 			}
 			if u, err = strconv.ParseUint(chunk, 0, 64); err != nil {
-				return p, err
+				return
 			} else {
 				p.MatchAnyKeyword = u
 			}
@@ -67,15 +65,15 @@ func ProviderFromString(s string) (Provider, error) {
 				break
 			}
 			if u, err = strconv.ParseUint(chunk, 0, 64); err != nil {
-				return p, err
+				return
 			} else {
 				p.MatchAllKeyword = u
 			}
 		default:
-			return p, err
+			return
 		}
 	}
-	return p, err
+	return
 }
 
 // IsZero returns true if the provider is empty
@@ -102,9 +100,12 @@ func EnumerateProviders() (m ProviderMap) {
 		ptpi := (*TraceProviderInfo)(unsafe.Pointer(it + i*unsafe.Sizeof(buf.TraceProviderInfoArray[0])))
 		guid := ptpi.ProviderGuid.String()
 		name := UTF16AtOffsetToString(startProvEnumInfo, uintptr(ptpi.ProviderNameOffset))
-		p := &Provider{GUID: guid, Name: name}
-		m[name] = p
-		m[guid] = p
+		// We use a default provider here
+		p := DefaultProvider
+		p.GUID = guid
+		p.Name = name
+		m[name] = &p
+		m[guid] = &p
 	}
 	return
 }
