@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package etw
@@ -23,11 +24,17 @@ type Consumer struct {
 func NewRealTimeConsumer(ctx context.Context) (c *Consumer) {
 	c = &Consumer{
 		traceHandles: make([]syscall.Handle, 0, 64),
-		Filter:       &AllInFilter{},
+		Filter:       NewProviderFilter(),
 		Events:       make(chan *Event, 4096),
 	}
 	c.ctx, c.cancel = context.WithCancel(ctx)
 	return c
+}
+
+func (c *Consumer) InitFilters(providers []Provider) {
+	for _, p := range providers {
+		c.Filter.FromProvider(&p)
+	}
 }
 
 func (c *Consumer) bufferCallback(e *EventTraceLogfile) uintptr {

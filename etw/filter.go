@@ -8,6 +8,7 @@ import (
 
 type EventFilter interface {
 	Match(*Event) bool
+	FromProvider(p *Provider)
 }
 
 type AllInFilter struct{}
@@ -21,20 +22,28 @@ type BaseFilter struct {
 	m map[string]*datastructs.Set
 }
 
-func (f *BaseFilter) FilterIn(key string, eventIds []uint16) {
+func (f *BaseFilter) FromProvider(p *Provider) {
 	f.Lock()
 	defer f.Unlock()
-	s := datastructs.ToInterfaceSlice(eventIds)
-	if _, ok := f.m[key]; ok {
-		f.m[key].Add(s...)
-	} else {
-		f.m[key] = datastructs.NewInitSet(datastructs.ToInterfaceSlice(eventIds)...)
+	if len(p.Filter) > 0 {
+		s := datastructs.ToInterfaceSlice(p.Filter)
+		if _, ok := f.m[p.GUID]; ok {
+			f.m[p.GUID].Add(s...)
+		} else {
+			f.m[p.GUID] = datastructs.NewInitSet(s...)
+		}
 	}
 }
 
 func (f *BaseFilter) MatchKey(key string, e *Event) bool {
 	f.RLock()
 	defer f.RUnlock()
+
+	// map is nil
+	if f.m == nil {
+		return true
+	}
+
 	// Filter is empty
 	if len(f.m) == 0 {
 		return true
@@ -46,15 +55,15 @@ func (f *BaseFilter) MatchKey(key string, e *Event) bool {
 		}
 		return true
 	}
-
-	return false
+	// we return true if no filter is found
+	return true
 }
 
 type ProviderFilter struct {
 	BaseFilter
 }
 
-func NewEventFilter() *ProviderFilter {
+func NewProviderFilter() *ProviderFilter {
 	f := ProviderFilter{}
 	f.m = make(map[string]*datastructs.Set)
 	return &f

@@ -24,11 +24,18 @@ type Provider struct {
 	EnableLevel     uint8
 	MatchAnyKeyword uint64
 	MatchAllKeyword uint64
+	Filter          []uint16
+}
+
+func NewProvider() Provider {
+	p := DefaultProvider
+	p.Filter = make([]uint16, 0)
+	return p
 }
 
 // ProviderFromString parses a string and returns a provider.
 // The returned provider is initialized from DefaultProvider.
-// Format (Name|GUID):EnableLevel:MatchAnyKeyword:MatchAllKeyword
+// Format (Name|GUID):EnableLevel:Event IDs:MatchAnyKeyword:MatchAllKeyword
 func ProviderFromString(s string) (p Provider, err error) {
 	var u uint64
 
@@ -55,12 +62,23 @@ func ProviderFromString(s string) (p Provider, err error) {
 			if chunk == "" {
 				break
 			}
+			for _, eid := range strings.Split(chunk, ",") {
+				if u, err = strconv.ParseUint(eid, 0, 16); err != nil {
+					return
+				} else {
+					p.Filter = append(p.Filter, uint16(u))
+				}
+			}
+		case 3:
+			if chunk == "" {
+				break
+			}
 			if u, err = strconv.ParseUint(chunk, 0, 64); err != nil {
 				return
 			} else {
 				p.MatchAnyKeyword = u
 			}
-		case 3:
+		case 4:
 			if chunk == "" {
 				break
 			}

@@ -21,14 +21,14 @@ type RealTimeSession struct {
 	sessionHandle syscall.Handle
 
 	TraceName string
-	Providers []string
+	Providers []Provider
 }
 
 func NewRealTimeProducer(name string) (p *RealTimeSession) {
 	p = &RealTimeSession{}
 	p.properties = NewRealTimeEventTraceSessionProperties(name)
 	p.TraceName = name
-	p.Providers = make([]string, 0)
+	p.Providers = make([]Provider, 0)
 	return
 }
 
@@ -78,7 +78,7 @@ func (p *RealTimeSession) EnableProvider(prov Provider) (err error) {
 		return
 	}
 
-	p.Providers = append(p.Providers, prov.GUID)
+	p.Providers = append(p.Providers, prov)
 
 	return
 }

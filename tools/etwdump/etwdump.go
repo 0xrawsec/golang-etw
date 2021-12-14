@@ -89,7 +89,6 @@ func main() {
 		attach              string
 		regex               string
 		outfile             string
-		filter              string
 		autologger          string
 		cregex              *regexp.Regexp
 		kernelTraceFlags    uint32
@@ -105,7 +104,6 @@ func main() {
 	flag.StringVar(&attach, "a", attach, "Attach to existing session(s) (comma separated)")
 	flag.StringVar(&regex, "e", regex, "Regex to filter in events")
 	flag.StringVar(&outfile, "o", outfile, "Output file")
-	flag.StringVar(&filter, "f", filter, "Filter")
 	flag.StringVar(&autologger, "autologger", autologger, "Creates autologger and enables providers")
 	flag.BoolVar(&access, "access", access, "List accesses to GUIDs")
 	flag.BoolVar(&debug, "debug", debug, "Enable debug messages")
@@ -250,14 +248,7 @@ func main() {
 
 	/** Consumer part **/
 	c := etw.NewRealTimeConsumer(context.Background())
-
-	if filter != "" {
-		provider, eventIds := parseFilter(filter)
-		log.Debugf("Filter: %s %s", provider, eventIds)
-		f := etw.NewEventFilter()
-		f.FilterIn(provider, eventIds)
-		c.Filter = f
-	}
+	c.InitFilters(p.Providers)
 
 	// additional sessions to trace (already started)
 	if attach != "" {
