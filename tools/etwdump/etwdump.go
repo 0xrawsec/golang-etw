@@ -7,18 +7,31 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
 	"github.com/0xrawsec/golang-etw/etw"
 	"github.com/0xrawsec/golang-utils/log"
 )
+
+const (
+	copyright = "etwdump Copyright (C) 2022 RawSec SARL (@0xrawsec)"
+	license   = `GPLv3: This program comes with ABSOLUTELY NO WARRANTY.`
+)
+
+func clear() {
+	cmd := exec.Command("cmd", "/c", "cls")
+	cmd.Stdout = os.Stdout
+	cmd.Run()
+}
 
 type EventWrapper struct {
 	Event *etw.Event
@@ -43,6 +56,26 @@ func getAccessString(guid string) (s string) {
 		panic(err)
 	}
 	return s
+}
+
+func setAccess(guid string) {
+	var sid *etw.SID
+	var err error
+
+	if sid, err = etw.ConvertStringSidToSidW("S-1-5-18"); err != nil {
+		log.Errorf("Failed to convert string to sid: %s", err)
+		return
+	}
+	g := etw.MustGUIDFromString(guid)
+
+	if err = etw.EventAccessControl(g,
+		uint32(etw.EVENT_SECURITY_SET_DACL),
+		sid,
+		0x120fff,
+		true,
+	); err != nil {
+		log.Errorf("Failed to set access: %s", err)
+	}
 }
 
 func parseFilter(s string) (provider string, eventIds []uint16) {
@@ -79,13 +112,98 @@ func unsafeRandomGuid() *etw.GUID {
 	}
 }
 
+func providerOrFail(s string) etw.Provider {
+	if prov, err := etw.ProviderFromString(s); err != nil {
+		log.Abort(1, err)
+		return prov
+	} else {
+		return prov
+	}
+}
+
+type Stats struct {
+	sync.RWMutex
+	s      map[string]map[uint16]uint64
+	start  time.Time
+	update time.Time
+	Count  uint64
+}
+
+func NewStats() *Stats {
+	return &Stats{
+		s: make(map[string]map[uint16]uint64),
+	}
+}
+
+func (s *Stats) Update(e *etw.Event) {
+	s.Lock()
+	defer s.Unlock()
+
+	var ok bool
+	var eventIDs map[uint16]uint64
+
+	now := time.Now()
+
+	key := e.System.Channel
+	if key == "" {
+		key = e.System.Provider.Guid
+	}
+
+	if eventIDs, ok = s.s[key]; !ok {
+		eventIDs = make(map[uint16]uint64)
+		s.s[key] = eventIDs
+	}
+
+	eventIDs[e.System.EventID]++
+	s.Count++
+
+	if s.start.IsZero() {
+		s.start = now
+	}
+
+	s.update = now
+}
+
+func (s *Stats) Show() {
+	s.RLock()
+	defer s.RUnlock()
+
+	delta := float64(s.update.Unix() - s.start.Unix())
+	channels := make(sort.StringSlice, 0, len(s.s))
+	for c := range s.s {
+		channels = append(channels, c)
+	}
+	sort.Sort(channels)
+	for _, c := range channels {
+		chanCount := uint64(0)
+		ids := make(sort.IntSlice, 0, len(s.s[c]))
+		for id, cnt := range s.s[c] {
+			ids = append(ids, int(id))
+			chanCount += cnt
+		}
+		sort.Sort(ids)
+		// Printing output
+		chanEps := float64(chanCount) / delta
+		fmt.Printf("%s: %d (%.2f EPS)\n", c, chanCount, chanEps)
+		for _, id := range ids {
+			count := s.s[c][uint16(id)]
+			eps := float64(count) / delta
+			fmt.Printf("\t%d: %d (%.2f EPS)\n", id, count, eps)
+		}
+	}
+	globEps := float64(s.Count) / delta
+	fmt.Printf("Global: %d (%.2f EPS)", s.Count, globEps)
+}
+
 func main() {
 	var (
 		debug               bool
 		listKernelProviders bool
 		listProviders       bool
 		access              bool
+		set                 bool
 		noout               bool
+		fstats              bool
 		attach              string
 		regex               string
 		outfile             string
@@ -98,19 +216,24 @@ func main() {
 		sessionName = "EtwdumpTraceSession"
 		sessions    = make([]string, 0)
 		writer      = os.Stdout
+		stats       = NewStats()
 	)
 
 	flag.StringVar(&sessionName, "s", sessionName, "ETW session name")
 	flag.StringVar(&attach, "a", attach, "Attach to existing session(s) (comma separated)")
-	flag.StringVar(&regex, "e", regex, "Regex to filter in events")
+	flag.StringVar(&regex, "e", regex, "Regex to filter in events or providers when listed")
 	flag.StringVar(&outfile, "o", outfile, "Output file")
 	flag.StringVar(&autologger, "autologger", autologger, "Creates autologger and enables providers")
 	flag.BoolVar(&access, "access", access, "List accesses to GUIDs")
+	flag.BoolVar(&set, "set", set, "Set accesses to GUIDs")
 	flag.BoolVar(&debug, "debug", debug, "Enable debug messages")
 	flag.BoolVar(&listKernelProviders, "lk", listKernelProviders, "List kernel providers")
 	flag.BoolVar(&listProviders, "lp", listProviders, "List providers")
 	flag.BoolVar(&noout, "noout", noout, "Do not write logs")
+	flag.BoolVar(&fstats, "stats", fstats, "Show statistics about events")
 	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "%s\n%s\n", copyright, license)
+		fmt.Fprintf(os.Stderr, "Version: %s (commit: %s)\n\n", version, commitID)
 		fmt.Fprintf(os.Stderr, "Usage: %s [OPTIONS] PROVIDERS...\n", filepath.Base(os.Args[0]))
 		fmt.Fprintf(os.Stderr, "Options:\n")
 		flag.PrintDefaults()
@@ -134,11 +257,25 @@ func main() {
 		os.Exit(0)
 	}
 
+	// build up regex
+	if regex != "" {
+		cregex = regexp.MustCompile(regex)
+	}
+
 	if listProviders {
 		pmap := etw.EnumerateProviders()
 		names := make([]string, 0, len(pmap))
 		maxLen := 0
-		for name := range pmap {
+		for name, prov := range pmap {
+			// we don't want do display GUID keys
+			if name == prov.GUID {
+				continue
+			}
+			if cregex != nil {
+				if !cregex.MatchString(name) {
+					continue
+				}
+			}
 			if len(name) > maxLen {
 				maxLen = len(name)
 			}
@@ -152,16 +289,17 @@ func main() {
 	}
 
 	if access {
+		if set {
+			for _, provider := range flag.Args() {
+				setAccess(providerOrFail(provider).GUID)
+			}
+		}
+
 		fmt.Println("Listing access rights")
 		for _, provider := range flag.Args() {
-			fmt.Printf("%s: %s\n", provider, getAccessString(provider))
+			fmt.Printf("%s: %s\n", provider, getAccessString(providerOrFail(provider).GUID))
 		}
 		os.Exit(0)
-	}
-
-	// build up regex
-	if regex != "" {
-		cregex = regexp.MustCompile(regex)
 	}
 
 	// opening output file if needed
@@ -287,6 +425,23 @@ func main() {
 	go func() {
 		log.Debug("Consuming events")
 		for e := range c.Events {
+			if fstats {
+				stats.Update(e)
+				if stats.Count%200 == 0 {
+					clear()
+					stats.Show()
+				}
+				// we write to output if needed
+				if outfile != "" {
+					if b, err := json.Marshal(EventWrapper{e}); err != nil {
+						panic(err)
+					} else {
+						fmt.Fprintf(writer, "%s\n", string(b))
+					}
+				}
+				continue
+			}
+
 			if b, err := json.Marshal(EventWrapper{e}); err != nil {
 				panic(err)
 			} else {

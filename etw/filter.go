@@ -4,6 +4,7 @@
 package etw
 
 import (
+	"regexp"
 	"sync"
 
 	"github.com/0xrawsec/golang-utils/datastructs"
@@ -88,4 +89,43 @@ func NewChannelFilter() *ChannelFilter {
 
 func (f *ChannelFilter) Match(e *Event) bool {
 	return f.MatchKey(e.System.Channel, e)
+}
+
+type FieldFilter struct {
+	m map[string]*regexp.Regexp
+}
+
+func NewEventDataFilter() *FieldFilter {
+	return &FieldFilter{
+		make(map[string]*regexp.Regexp),
+	}
+}
+
+func (f *FieldFilter) Match(e *Event) bool {
+	if len(f.m) > 0 {
+		if len(f.m) > len(e.EventData) {
+			for field := range e.EventData {
+				if rex := f.m[field]; rex != nil {
+					if svalue, ok := e.EventData[field].(string); ok {
+						if rex.MatchString(svalue) {
+							return true
+
+						}
+					}
+				}
+			}
+		} else {
+			for field, rex := range f.m {
+				if value, ok := e.EventData[field]; ok {
+					if svalue, ok := value.(string); ok {
+						if rex.MatchString(svalue) {
+							return true
+						}
+					}
+				}
+			}
+		}
+		return false
+	}
+	return true
 }

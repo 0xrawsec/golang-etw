@@ -119,7 +119,6 @@ func (c *Consumer) Err() error {
 }
 
 func (c *Consumer) Close(wait bool) (lastErr error) {
-	close(c.Events)
 	// closing trace handles
 	for _, h := range c.traceHandles {
 		// if we don't wait for traces ERROR_CTX_CLOSE_PENDING is a valid error
@@ -130,6 +129,7 @@ func (c *Consumer) Close(wait bool) (lastErr error) {
 	if wait {
 		c.Wait()
 	}
+	close(c.Events)
 	return
 }
 

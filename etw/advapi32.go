@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package etw
@@ -180,6 +181,40 @@ func EventAccessQuery(
 }
 
 /*
+EventAccessControl API wrapper generated from prototype
+ULONG EVNTAPI EventAccessControl (
+	 LPGUID Guid,
+	 ULONG Operation,
+	 PSID Sid,
+	 ULONG Rights,
+	 BOOLEAN AllowOrDeny);
+*/
+func EventAccessControl(guid *GUID,
+	operation uint32,
+	sid *SID,
+	rights uint32,
+	allowOrDeny bool) error {
+
+	// we need a byte not a bool
+	var bAllowOrDeny byte
+
+	if allowOrDeny {
+		bAllowOrDeny = 1
+	}
+
+	r1, _, _ := eventAccessControl.Call(
+		uintptr(unsafe.Pointer(guid)),
+		uintptr(operation),
+		uintptr(unsafe.Pointer(sid)),
+		uintptr(rights),
+		uintptr(bAllowOrDeny))
+	if r1 == 0 {
+		return nil
+	}
+	return syscall.Errno(r1)
+}
+
+/*
 ConvertSecurityDescriptorToStringSecurityDescriptorW API wrapper generated from prototype
 WINADVAPI WINBOOL WINAPI ConvertSecurityDescriptorToStringSecurityDescriptorW(
 	 PSECURITY_DESCRIPTOR SecurityDescriptor,
@@ -212,4 +247,31 @@ func ConvertSecurityDescriptorToStringSecurityDescriptorW(
 		return s, nil
 	}
 	return "", err
+}
+
+/*
+ConvertStringSidToSidW API wrapper generated from prototype
+WINADVAPI WINBOOL WINAPI ConvertStringSidToSidW(
+	 LPCWSTR StringSid,
+	PSID *Sid);
+*/
+func ConvertStringSidToSidW(stringSid string) (sid *SID, err error) {
+
+	var rc uintptr
+	var utf16Sid *uint16
+
+	if utf16Sid, err = syscall.UTF16PtrFromString(stringSid); err != nil {
+		return
+	}
+
+	rc, _, err = convertStringSidToSidW.Call(
+		uintptr(unsafe.Pointer(utf16Sid)),
+		uintptr(unsafe.Pointer(&sid)))
+
+	if rc != 0 {
+		// success
+		err = nil
+	}
+
+	return
 }

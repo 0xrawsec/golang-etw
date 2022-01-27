@@ -189,3 +189,12 @@ func TestParseProvider(t *testing.T) {
 	}
 
 }
+
+func TestConvertSid(t *testing.T) {
+	systemSID := "S-1-5-18"
+	if sid, err := ConvertStringSidToSidW(systemSID); err != nil {
+		t.Error(err)
+	} else {
+		t.Log(sid)
+	}
+}

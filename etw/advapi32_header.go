@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package etw
@@ -461,7 +462,7 @@ func (e *EventTraceLogfile) SetProcessTraceMode(ptm uint32) {
 }
 
 type EventCallback func(*EventTrace)
-type EventRecordCallback func(*EventRecord)
+type EventRecordCallback func(*EventRecord) uintptr
 type EventTraceBufferCallback func(*EventTraceLogfile) uint32
 
 /*
@@ -984,3 +985,41 @@ type SecurityDescriptor struct {
 	Sacl     *ACL
 	Dacl     *ACL
 }
+
+/*
+typedef enum {
+    EventSecuritySetDACL,
+    EventSecuritySetSACL,
+    EventSecurityAddDACL,
+    EventSecurityAddSACL,
+    EventSecurityMax
+  } EVENTSECURITYOPERATION;
+*/
+
+type EventSecurityOperation uint32
+
+const (
+	EVENT_SECURITY_SET_DACL = EventSecurityOperation(0)
+	EVENT_SECURITY_SET_SACL = EventSecurityOperation(1)
+	EVENT_SECURITY_ADD_DACL = EventSecurityOperation(2)
+	EVENT_SECURITY_ADD_SACL = EventSecurityOperation(3)
+	EVENT_SECURITY_MAX      = EventSecurityOperation(4)
+)
+
+// Permissions for EventAccessControl API
+const (
+	TRACELOG_CREATE_REALTIME      = 0x0020
+	TRACELOG_CREATE_ONDISK        = 0x0040
+	TRACELOG_GUID_ENABLE          = 0x0080
+	TRACELOG_ACCESS_KERNEL_LOGGER = 0x0100
+	TRACELOG_CREATE_INPROC        = 0x0200
+	TRACELOG_LOG_EVENT            = 0x0200
+	TRACELOG_ACCESS_REALTIME      = 0x0400
+	TRACELOG_REGISTER_GUIDS       = 0x0800
+	TRACELOG_ALL                  = TRACELOG_CREATE_REALTIME |
+		TRACELOG_CREATE_ONDISK |
+		TRACELOG_GUID_ENABLE |
+		TRACELOG_LOG_EVENT |
+		TRACELOG_ACCESS_REALTIME |
+		TRACELOG_REGISTER_GUIDS
+)
