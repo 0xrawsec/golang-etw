@@ -34,6 +34,8 @@ EXTERN_C ULONG WMIAPI StopTrace(
 	  IN TRACEHANDLE TraceHandle,
 	 IN LPCWSTR InstanceName OPTIONAL,
 	 IN OUT PEVENT_TRACE_PROPERTIES Properties);
+
+NB: This function is obsolete. The ControlTrace function supersedes this function.
 */
 func StopTrace(
 	traceHandle syscall.Handle,

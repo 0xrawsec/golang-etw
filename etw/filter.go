@@ -4,42 +4,29 @@
 package etw
 
 import (
-	"regexp"
 	"sync"
 
 	"github.com/0xrawsec/golang-utils/datastructs"
 )
 
+type IEvent interface {
+	ProviderGUID() string
+	EventID() uint16
+}
+
 type EventFilter interface {
-	Match(*Event) bool
-	FromProvider(p *Provider)
+	// Match must return true if the event has to be filtered in
+	Match(IEvent) bool
+	// Update adds a filter for/from a given provider
+	Update(p *Provider)
 }
 
-type AllInFilter struct{}
-
-func (f *AllInFilter) Match(*Event) bool {
-	return true
-}
-
-type BaseFilter struct {
+type baseFilter struct {
 	sync.RWMutex
 	m map[string]*datastructs.Set
 }
 
-func (f *BaseFilter) FromProvider(p *Provider) {
-	f.Lock()
-	defer f.Unlock()
-	if len(p.Filter) > 0 {
-		s := datastructs.ToInterfaceSlice(p.Filter)
-		if _, ok := f.m[p.GUID]; ok {
-			f.m[p.GUID].Add(s...)
-		} else {
-			f.m[p.GUID] = datastructs.NewInitSet(s...)
-		}
-	}
-}
-
-func (f *BaseFilter) MatchKey(key string, e *Event) bool {
+func (f *baseFilter) matchKey(key string, e IEvent) bool {
 	f.RLock()
 	defer f.RUnlock()
 
@@ -55,7 +42,7 @@ func (f *BaseFilter) MatchKey(key string, e *Event) bool {
 
 	if eventids, ok := f.m[key]; ok {
 		if eventids.Len() > 0 {
-			return eventids.Contains(e.System.EventID)
+			return eventids.Contains(e.EventID())
 		}
 		return true
 	}
@@ -63,69 +50,30 @@ func (f *BaseFilter) MatchKey(key string, e *Event) bool {
 	return true
 }
 
+// ProviderFilter structure to filter events based on Provider
+// definition
 type ProviderFilter struct {
-	BaseFilter
+	baseFilter
 }
 
+// NewProviderFilter creates a new ProviderFilter structure
 func NewProviderFilter() *ProviderFilter {
 	f := ProviderFilter{}
 	f.m = make(map[string]*datastructs.Set)
 	return &f
 }
 
-func (f *ProviderFilter) Match(e *Event) bool {
-	return f.MatchKey(e.System.Provider.Guid, e)
+// Match implements EventFilter
+func (f *ProviderFilter) Match(e IEvent) bool {
+	return f.matchKey(e.ProviderGUID(), e)
 }
 
-type ChannelFilter struct {
-	BaseFilter
-}
-
-func NewChannelFilter() *ChannelFilter {
-	f := ChannelFilter{}
-	f.m = make(map[string]*datastructs.Set)
-	return &f
-}
-
-func (f *ChannelFilter) Match(e *Event) bool {
-	return f.MatchKey(e.System.Channel, e)
-}
-
-type FieldFilter struct {
-	m map[string]*regexp.Regexp
-}
-
-func NewEventDataFilter() *FieldFilter {
-	return &FieldFilter{
-		make(map[string]*regexp.Regexp),
+// FromProvider implements EventFilter
+func (f *ProviderFilter) Update(p *Provider) {
+	f.Lock()
+	defer f.Unlock()
+	if len(p.Filter) > 0 {
+		s := datastructs.ToInterfaceSlice(p.Filter)
+		f.m[p.GUID] = datastructs.NewInitSet(s...)
 	}
-}
-
-func (f *FieldFilter) Match(e *Event) bool {
-	if len(f.m) > 0 {
-		if len(f.m) > len(e.EventData) {
-			for field := range e.EventData {
-				if rex := f.m[field]; rex != nil {
-					if svalue, ok := e.EventData[field].(string); ok {
-						if rex.MatchString(svalue) {
-							return true
-
-						}
-					}
-				}
-			}
-		} else {
-			for field, rex := range f.m {
-				if value, ok := e.EventData[field]; ok {
-					if svalue, ok := value.(string); ok {
-						if rex.MatchString(svalue) {
-							return true
-						}
-					}
-				}
-			}
-		}
-		return false
-	}
-	return true
 }

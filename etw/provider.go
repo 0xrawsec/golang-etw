@@ -14,6 +14,8 @@ var (
 	providers ProviderMap
 
 	DefaultProvider = Provider{EnableLevel: 0xff}
+
+	ErrUnkownProvider = fmt.Errorf("unknown provider")
 )
 
 type ProviderMap map[string]*Provider
@@ -27,16 +29,20 @@ type Provider struct {
 	Filter          []uint16
 }
 
-func NewProvider() Provider {
-	p := DefaultProvider
-	p.Filter = make([]uint16, 0)
-	return p
+// MustParseProvider parses a provider string or panic
+func MustParseProvider(s string) (p Provider) {
+	var err error
+	if p, err = ParseProvider(s); err != nil {
+		panic(err)
+	}
+	return
 }
 
-// ProviderFromString parses a string and returns a provider.
+// ParseProvider parses a string and returns a provider.
 // The returned provider is initialized from DefaultProvider.
-// Format (Name|GUID):EnableLevel:Event IDs:MatchAnyKeyword:MatchAllKeyword
-func ProviderFromString(s string) (p Provider, err error) {
+// Format (Name|GUID) string:EnableLevel uint8:Event IDs comma sep string:MatchAnyKeyword uint16:MatchAllKeyword uint16
+// Example: Microsoft-Windows-Kernel-File:0xff:13,14:0x80
+func ParseProvider(s string) (p Provider, err error) {
 	var u uint64
 
 	split := strings.Split(s, ":")
@@ -46,14 +52,16 @@ func ProviderFromString(s string) (p Provider, err error) {
 		case 0:
 			p = ResolveProvider(chunk)
 			if p.IsZero() {
-				err = fmt.Errorf("Provider not found: %s", chunk)
+				err = fmt.Errorf("%w %s", ErrUnkownProvider, chunk)
 				return
 			}
 		case 1:
 			if chunk == "" {
 				break
 			}
+			// parsing EnableLevel
 			if u, err = strconv.ParseUint(chunk, 0, 8); err != nil {
+				err = fmt.Errorf("failed to parse EnableLevel: %w", err)
 				return
 			} else {
 				p.EnableLevel = uint8(u)
@@ -62,8 +70,10 @@ func ProviderFromString(s string) (p Provider, err error) {
 			if chunk == "" {
 				break
 			}
+			// parsing event ids
 			for _, eid := range strings.Split(chunk, ",") {
 				if u, err = strconv.ParseUint(eid, 0, 16); err != nil {
+					err = fmt.Errorf("failed to parse EventID: %w", err)
 					return
 				} else {
 					p.Filter = append(p.Filter, uint16(u))
@@ -73,7 +83,10 @@ func ProviderFromString(s string) (p Provider, err error) {
 			if chunk == "" {
 				break
 			}
+
+			// parsing MatchAnyKeyword
 			if u, err = strconv.ParseUint(chunk, 0, 64); err != nil {
+				err = fmt.Errorf("failed to parse MatchAnyKeyword: %w", err)
 				return
 			} else {
 				p.MatchAnyKeyword = u
@@ -82,7 +95,10 @@ func ProviderFromString(s string) (p Provider, err error) {
 			if chunk == "" {
 				break
 			}
+
+			// parsing MatchAllKeyword
 			if u, err = strconv.ParseUint(chunk, 0, 64); err != nil {
+				err = fmt.Errorf("failed to parse MatchAllKeyword: %w", err)
 				return
 			} else {
 				p.MatchAllKeyword = u
@@ -136,7 +152,7 @@ func ResolveProvider(s string) (p Provider) {
 		providers = EnumerateProviders()
 	}
 
-	if g, err := GUIDFromString(s); err == nil {
+	if g, err := ParseGUID(s); err == nil {
 		s = g.String()
 	}
 

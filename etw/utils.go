@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package etw
@@ -17,7 +18,6 @@ func UTF16BytesToString(utf16 []byte) string {
 
 // UTF16PtrToString transforms a *uint16 to a Go string
 func UTF16PtrToString(utf16 *uint16) string {
-	//return syscall.UTF16ToString(*(*[]uint16)(unsafe.Pointer(&utf16)))
 	return UTF16AtOffsetToString(uintptr(unsafe.Pointer(utf16)), 0)
 }
 
@@ -42,7 +42,7 @@ func UTF16AtOffsetToString(pstruct uintptr, offset uintptr) string {
 }
 
 func CopyData(pointer uintptr, size int) []byte {
-	out := make([]byte, size)
+	out := make([]byte, 0, size)
 	for it := pointer; it != pointer+uintptr(size); it++ {
 		b := (*byte)(unsafe.Pointer(it))
 		out = append(out, *b)
@@ -50,7 +50,7 @@ func CopyData(pointer uintptr, size int) []byte {
 	return out
 }
 
-// UUID is a simple UUID generator
+// UUID is a simple UUIDgenerator
 func UUID() (uuid string, err error) {
 	b := make([]byte, 16)
 	_, err = rand.Read(b)

@@ -16,7 +16,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/0xrawsec/golang-etw/etw"
 	"github.com/0xrawsec/golang-utils/log"
@@ -40,22 +39,11 @@ type EventWrapper struct {
 func getAccessString(guid string) (s string) {
 	var err error
 
-	g := etw.MustGUIDFromString(guid)
-	bSize := uint32(0)
-	// retrieves size
-	etw.EventAccessQuery(g, nil, &bSize)
-	buffer := make([]byte, bSize)
-	sd := (*etw.SecurityDescriptor)(unsafe.Pointer(&buffer[0]))
-	// we get the security descriptor
-	etw.EventAccessQuery(g, sd, &bSize)
-
-	if s, err = etw.ConvertSecurityDescriptorToStringSecurityDescriptorW(
-		sd,
-		etw.SDDL_REVISION_1,
-		etw.DACL_SECURITY_INFORMATION); err != nil {
+	if s, err = etw.GetAccessString(guid); err != nil {
 		panic(err)
 	}
-	return s
+
+	return
 }
 
 func setAccess(guid string) {
@@ -63,10 +51,10 @@ func setAccess(guid string) {
 	var err error
 
 	if sid, err = etw.ConvertStringSidToSidW("S-1-5-18"); err != nil {
-		log.Errorf("Failed to convert string to sid: %s", err)
+		log.Errorf("Failed to convert string to sid%s", err)
 		return
 	}
-	g := etw.MustGUIDFromString(guid)
+	g := etw.MustParseGUIDFromString(guid)
 
 	if err = etw.EventAccessControl(g,
 		uint32(etw.EVENT_SECURITY_SET_DACL),
@@ -74,7 +62,7 @@ func setAccess(guid string) {
 		0x120fff,
 		true,
 	); err != nil {
-		log.Errorf("Failed to set access: %s", err)
+		log.Errorf("Failed to set access%s", err)
 	}
 }
 
@@ -113,7 +101,7 @@ func unsafeRandomGuid() *etw.GUID {
 }
 
 func providerOrFail(s string) etw.Provider {
-	if prov, err := etw.ProviderFromString(s); err != nil {
+	if prov, err := etw.ParseProvider(s); err != nil {
 		log.Abort(1, err)
 		return prov
 	} else {
@@ -184,7 +172,7 @@ func (s *Stats) Show() {
 		sort.Sort(ids)
 		// Printing output
 		chanEps := float64(chanCount) / delta
-		fmt.Printf("%s: %d (%.2f EPS)\n", c, chanCount, chanEps)
+		fmt.Printf("%s%d (%.2f EPS)\n", c, chanCount, chanEps)
 		for _, id := range ids {
 			count := s.s[c][uint16(id)]
 			eps := float64(count) / delta
@@ -332,7 +320,7 @@ func main() {
 
 			}
 
-			if p, err = etw.ProviderFromString(provider); err != nil {
+			if p, err = etw.ParseProvider(provider); err != nil {
 				log.Abort(1, err)
 			}
 
@@ -345,19 +333,19 @@ func main() {
 	}
 
 	// We create a private producer
-	p := etw.NewRealTimeProducer(sessionName)
+	p := etw.NewRealTimeSession(sessionName)
 
 	// We process the providers provided in the command line
 	for _, provStr := range flag.Args() {
 		// this is a kernel provider
 		if etw.IsKernelProvider(provStr) {
-			log.Debugf("Enabling kernel provider: %s", provStr)
+			log.Debugf("Enabling kernel provider: %s", provStr)
 			kernelTraceFlags |= etw.GetKernelProviderFlags(provStr)
 		} else {
-			if prov, err := etw.ProviderFromString(provStr); err != nil {
+			if prov, err := etw.ParseProvider(provStr); err != nil {
 				log.Errorf("Failed to parse provider: %s", provStr)
 			} else {
-				log.Debugf("Enabling provider: %s", provStr)
+				log.Debugf("Enabling provider: %s", provStr)
 				if err := p.EnableProvider(prov); err != nil {
 					log.Errorf("Failed to enable provider %s: %s", provStr, err)
 				}
@@ -366,60 +354,69 @@ func main() {
 	}
 
 	// We enable producer only if it has at least a provider
-	if len(p.Providers) > 0 {
+	if len(p.Providers()) > 0 {
 		producers = append(producers, p)
 	}
 
 	// We will start kernel producer only if necessary
 	if kernelTraceFlags != 0 {
-		kp := etw.NewKernelRealTimeProducer(kernelTraceFlags)
+		kp := etw.NewKernelRealTimeSession(kernelTraceFlags)
 		producers = append(producers, kp)
 	}
 
 	for _, p := range producers {
-		log.Debugf("Starting producer: %s", p.TraceName)
+		log.Debugf("Starting producer: %s", p.TraceName())
 		if err := p.Start(); err != nil {
 			panic(err)
 		}
-		sessions = append(sessions, p.TraceName)
+		sessions = append(sessions, p.TraceName())
 	}
 
 	/** Consumer part **/
-	c := etw.NewRealTimeConsumer(context.Background())
-	c.InitFilters(p.Providers)
 
 	// additional sessions to trace (already started)
 	if attach != "" {
 		sessions = append(sessions, strings.Split(attach, ",")...)
 	}
 
-	for _, s := range sessions {
-		log.Debugf("Consumer open trace session: %s", s)
-		if err := c.OpenTrace(s); err != nil {
-			log.Errorf("Failed to attach to session %s: %s", s, err)
-		}
+	c := etw.NewRealTimeConsumer(context.Background()).
+		FromSessions(etw.SessionSlice(producers)...).
+		FromTraceNames(sessions...)
+
+	c.InitFilters(p.Providers())
+
+	if err := c.Start(); err != nil {
+		log.Abort(1, "Failed to start traces: %s", err)
 	}
 
-	c.Start()
 	// Signal handler to catch interrupt
 	h := make(chan os.Signal, 1)
+	interrupt := sync.WaitGroup{}
 	signal.Notify(h, os.Interrupt)
+
+	interrupt.Add(1)
 	go func() {
+		defer interrupt.Done()
+
 		<-h
 		log.Infof("Received signal Interrupt")
+
+		// we need to stop consumer first otherwise we trigger
+		// some windows exception (probably due to access to freed memory)
+		log.Debug("Stopping consumer")
+		if err := c.Stop(); err != nil {
+			log.Errorf("Error while stopping consumer: %s", err)
+		}
+
+		log.Infof("Skipped: %d", c.Skipped)
 
 		log.Debug("Stopping producers")
 		for _, p := range producers {
 			if err := p.Stop(); err != nil {
-				log.Errorf("Failed to stop producer: %s", err)
+				log.Errorf("Failed to stop producer: %s", err)
 			}
 		}
-		time.Sleep(500 * time.Millisecond)
 
-		log.Debug("Stopping consumer")
-		if err := c.Stop(); err != nil {
-			log.Errorf("Error while stopping consumer: %s", err)
-		}
 	}()
 
 	go func() {
@@ -461,4 +458,5 @@ func main() {
 	}()
 
 	c.Wait()
+	interrupt.Wait()
 }

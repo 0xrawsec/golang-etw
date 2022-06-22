@@ -13,6 +13,7 @@ import (
 
 const (
 	AutologgerPath = `HKLM\System\CurrentControlSet\Control\WMI\Autologger`
+	regExe         = `C:\Windows\System32\reg.exe`
 
 	regDword = "REG_DWORD"
 	regQword = "REG_QWORD"
@@ -37,11 +38,11 @@ func (a *AutoLogger) Path() string {
 
 func (a *AutoLogger) Create() (err error) {
 	sargs := [][]string{
-		// ETW trace parameters
+		// ETWtrace parameters
 		{a.Path(), "GUID", regSz, a.Guid},
 		{a.Path(), "Start", regDword, "0x1"},
 		{a.Path(), "LogFileMode", regDword, hexStr(a.LogFileMode)},
-		// ETW event can be up to 64KB so buffer needs to be at least this size
+		// ETWevent can be up to 64KB so buffer needs to be at least this size
 		{a.Path(), "BufferSize", regDword, hexStr(a.BufferSize)},
 		{a.Path(), "ClockType", regDword, hexStr(a.ClockType)},
 	}
@@ -60,7 +61,7 @@ func (a *AutoLogger) EnableProvider(p Provider) (err error) {
 
 	sargs := [][]string{}
 
-	// ETW trace parameters
+	// ETWtrace parameters
 	if p.Name != "" {
 		sargs = append(sargs, []string{path, "ProviderName", regSz, p.Name})
 	}
@@ -82,15 +83,16 @@ func (a *AutoLogger) EnableProvider(p Provider) (err error) {
 }
 
 func (a *AutoLogger) Exists() bool {
-	return execute("reg.exe", "QUERY", a.Path()) == nil
+	return execute(regExe, "QUERY", a.Path()) == nil
 }
 
 func (a *AutoLogger) Delete() error {
-	return execute("reg.exe", "DELETE", a.Path(), "/f")
+	return execute(regExe, "DELETE", a.Path(), "/f")
 }
 
 func execute(name string, args ...string) error {
-	ctx, _ := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
 	if out, err := exec.CommandContext(ctx, name, args...).CombinedOutput(); err != nil {
 		return fmt.Errorf("%s", string(out))
 	}
@@ -98,5 +100,5 @@ func execute(name string, args ...string) error {
 }
 
 func regAddValue(path, valueName, valueType, value string) error {
-	return execute("reg.exe", "ADD", path, "/v", valueName, "/t", valueType, "/d", value, "/f")
+	return execute(regExe, "ADD", path, "/v", valueName, "/t", valueType, "/d", value, "/f")
 }

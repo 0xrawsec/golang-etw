@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package etw
@@ -137,11 +138,14 @@ func IsKernelProvider(term string) bool {
 	return false
 }
 
-func GetKernelProviderFlags(term string) (flags uint32) {
-	for _, pd := range KernelProviders {
-		if strings.EqualFold(term, pd.Name) || term == pd.GUID {
-			flags |= pd.Flags
+func GetKernelProviderFlags(terms ...string) (flags uint32) {
+	for _, t := range terms {
+		for _, pd := range KernelProviders {
+			if strings.EqualFold(t, pd.Name) || t == pd.GUID {
+				flags |= pd.Flags
+			}
 		}
+
 	}
 	return
 }

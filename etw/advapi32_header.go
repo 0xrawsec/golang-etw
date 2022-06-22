@@ -348,8 +348,8 @@ func NewRealTimeEventTraceSessionProperties(logSessionName string) *EventTracePr
 	sessionProperties, size := NewEventTraceSessionProperties(logSessionName)
 
 	// Necessary fields for SessionProperties struct
-	sessionProperties.Wnode.BufferSize = size // this is optimized by ETW framework
-	sessionProperties.Wnode.Guid = GUID{}     // To set
+	sessionProperties.Wnode.BufferSize = size // this is optimized by ETWframework
+	sessionProperties.Wnode.Guid = GUID{}     //To set
 	sessionProperties.Wnode.ClientContext = 1 // QPC
 	sessionProperties.Wnode.Flags = WNODE_FLAG_ALL_DATA
 	sessionProperties.LogFileMode = EVENT_TRACE_REAL_TIME_MODE
@@ -362,12 +362,6 @@ func NewRealTimeEventTraceSessionProperties(logSessionName string) *EventTracePr
 
 	return sessionProperties
 }
-
-/*func NewRealTimeKernelEventTraceSessionProperties() (p *EventTraceProperties) {
-	p = NewRealTimeEventTraceSessionProperties("NT Kernel Logger")
-	p.Wnode.Guid = *SystemTraceControlGuid
-	return
-}*/
 
 /*
 typedef struct _ENABLE_TRACE_PARAMETERS {
@@ -487,6 +481,8 @@ type EventRecord struct {
 	UserContext       uintptr
 }
 
+/*
+Un-used uncomment if necessary
 func (e *EventRecord) pointer() uintptr {
 	return (uintptr)(unsafe.Pointer(e))
 }
@@ -494,6 +490,7 @@ func (e *EventRecord) pointer() uintptr {
 func (e *EventRecord) pointerOffset(offset uintptr) uintptr {
 	return e.pointer() + offset
 }
+*/
 
 func (e *EventRecord) GetEventInformation() (tei *TraceEventInfo, err error) {
 	bufferSize := uint32(0)

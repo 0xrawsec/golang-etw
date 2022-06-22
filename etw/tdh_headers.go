@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 package etw
@@ -196,7 +197,7 @@ typedef struct _TRACE_EVENT_INFO {
 */
 
 type TraceEventInfo struct {
-	ProviderGuid                GUID
+	ProviderGUID                GUID
 	EventGUID                   GUID
 	EventDescriptor             EventDescriptor
 	DecodingSource              DecodingSource
@@ -240,8 +241,9 @@ func (t *TraceEventInfo) cleanStringAt(offset uintptr) string {
 	return ""
 }
 
+// Seems to be always empty
 func (t *TraceEventInfo) EventMessage() string {
-	return t.stringAt(uintptr(t.EventMessageOffset))
+	return t.cleanStringAt(uintptr(t.EventMessageOffset))
 }
 
 func (t *TraceEventInfo) ProviderName() string {
@@ -268,10 +270,12 @@ func (t *TraceEventInfo) ChannelName() string {
 	return t.cleanStringAt(uintptr(t.ChannelNameOffset))
 }
 
+// Seems to be always empty
 func (t *TraceEventInfo) ActivityIDName() string {
 	return t.stringAt(uintptr(t.ActivityIDNameOffset))
 }
 
+// Seems to be always empty
 func (t *TraceEventInfo) RelatedActivityIDName() string {
 	return t.stringAt(uintptr(t.RelatedActivityIDNameOffset))
 }
@@ -306,6 +310,10 @@ func (t *TraceEventInfo) GetEventPropertyInfoAt(i uint32) *EventPropertyInfo {
 		return ((*EventPropertyInfo)(unsafe.Pointer(pEpi)))
 	}
 	panic(fmt.Errorf("index out of range"))
+}
+
+func (t *TraceEventInfo) PropertyNameOffset(i uint32) uintptr {
+	return t.pointer() + uintptr(t.GetEventPropertyInfoAt(i).NameOffset)
 }
 
 /*

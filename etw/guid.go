@@ -1,3 +1,6 @@
+//go:build windows
+// +build windows
+
 package etw
 
 import (
@@ -16,7 +19,7 @@ typedef struct _GUID {
 } GUID;
 */
 
-// GUID structure manually ported
+// GUID structure
 type GUID struct {
 	Data1 uint32
 	Data2 uint16
@@ -24,6 +27,7 @@ type GUID struct {
 	Data4 [8]byte
 }
 
+// IsZero checks if GUID is all zeros
 func (g *GUID) IsZero() bool {
 	for _, b := range g.Data4 {
 		if b != 0 {
@@ -46,17 +50,17 @@ var (
 	guidRE = regexp.MustCompile(`^\{?[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}\}?$`)
 )
 
-
-
-func MustGUIDFromString(sguid string) (guid *GUID) {
+// MustParseGUIDFromString parses a guid string into a GUID struct or panics
+func MustParseGUIDFromString(sguid string) (guid *GUID) {
 	var err error
-	if guid, err = GUIDFromString(sguid); err != nil {
+	if guid, err = ParseGUID(sguid); err != nil {
 		panic(err)
 	}
 	return
 }
 
-func GUIDFromString(guid string) (g *GUID, err error) {
+// ParseGUID parses a guid string into a GUID structure
+func ParseGUID(guid string) (g *GUID, err error) {
 	var u uint64
 
 	g = &GUID{}
