@@ -2,7 +2,7 @@
 ![Version](https://img.shields.io/github/v/tag/0xrawsec/golang-etw?label=version)
 [![Coverage](https://raw.githubusercontent.com/0xrawsec/golang-etw/master/.github/coverage/badge.svg)](https://raw.githubusercontent.com/0xrawsec/golang-etw/master/.github/coverage/coverage.txt)
 
-Golang library to consume ETW logs
+Pure Golang (no need to enable CGO) library to consume ETW logs.
 
 ## Examples
 
