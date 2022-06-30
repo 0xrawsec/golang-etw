@@ -94,7 +94,7 @@ func execute(name string, args ...string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 	if out, err := exec.CommandContext(ctx, name, args...).CombinedOutput(); err != nil {
-		return fmt.Errorf("%s", string(out))
+		return fmt.Errorf("err:%s out:%s", err, string(out))
 	}
 	return nil
 }
