@@ -18,11 +18,15 @@ type Event struct {
 	EventData map[string]interface{} `json:",omitempty"`
 	UserData  map[string]interface{} `json:",omitempty"`
 	System    struct {
-		Channel   string
-		Computer  string
-		EventID   uint16
-		EventType string `json:",omitempty"`
-		EventGuid string `json:",omitempty"`
+		Channel     string
+		Computer    string
+		EventID     uint16
+		EventType   string `json:",omitempty"`
+		EventGuid   string `json:",omitempty"`
+		Correlation struct {
+			ActivityID        string
+			RelatedActivityID string
+		}
 		Execution struct {
 			ProcessID uint32
 			ThreadID  uint32

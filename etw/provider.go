@@ -15,6 +15,7 @@ var (
 
 	DefaultProvider = Provider{EnableLevel: 0xff}
 
+	// Error returned when a provider is not found on the system
 	ErrUnkownProvider = fmt.Errorf("unknown provider")
 )
 

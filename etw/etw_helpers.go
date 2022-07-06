@@ -157,6 +157,8 @@ func (e *EventRecordHelper) setEventMetadata(event *Event) {
 	event.System.Computer = hostname
 	event.System.Execution.ProcessID = e.EventRec.EventHeader.ProcessId
 	event.System.Execution.ThreadID = e.EventRec.EventHeader.ThreadId
+	event.System.Correlation.ActivityID = e.EventRec.EventHeader.ActivityId.String()
+	event.System.Correlation.RelatedActivityID = e.EventRec.RelatedActivityID()
 	event.System.EventID = e.TraceInfo.EventID()
 	event.System.Channel = e.TraceInfo.ChannelName()
 	event.System.Provider.Guid = e.TraceInfo.ProviderGUID.String()
@@ -368,7 +370,8 @@ func (e *EventRecordHelper) prepareProperties() (last error) {
 
 func (e *EventRecordHelper) parseExtendedData(i uint16) string {
 
-	item := (*EventHeaderExtendedDataItem)(unsafe.Pointer((uintptr(unsafe.Pointer(e.EventRec.ExtendedData)) + (uintptr(i) * unsafe.Sizeof(EventHeaderExtendedDataItem{})))))
+	item := e.EventRec.ExtendedDataItem(i)
+
 	switch item.ExtType {
 	case EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID:
 		g := (*GUID)(unsafe.Pointer(item.DataPtr))

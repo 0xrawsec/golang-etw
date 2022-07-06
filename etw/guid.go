@@ -10,6 +10,10 @@ import (
 	"strings"
 )
 
+const (
+	nullGUIDStr = "{00000000-0000-0000-0000-000000000000}"
+)
+
 /*
 typedef struct _GUID {
 	DWORD Data1;

@@ -492,6 +492,24 @@ func (e *EventRecord) pointerOffset(offset uintptr) uintptr {
 }
 */
 
+func (e *EventRecord) ExtendedDataItem(i uint16) *EventHeaderExtendedDataItem {
+	if i < e.ExtendedDataCount {
+		return (*EventHeaderExtendedDataItem)(unsafe.Pointer((uintptr(unsafe.Pointer(e.ExtendedData)) + (uintptr(i) * unsafe.Sizeof(EventHeaderExtendedDataItem{})))))
+	}
+	panic("out of bound extended data item")
+}
+
+func (e *EventRecord) RelatedActivityID() string {
+	for i := uint16(0); i < e.ExtendedDataCount; i++ {
+		item := e.ExtendedDataItem(i)
+		if item.ExtType == EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID {
+			g := (*GUID)(unsafe.Pointer(item.DataPtr))
+			return g.String()
+		}
+	}
+	return nullGUIDStr
+}
+
 func (e *EventRecord) GetEventInformation() (tei *TraceEventInfo, err error) {
 	bufferSize := uint32(0)
 	if err = TdhGetEventInformation(e, 0, nil, nil, &bufferSize); err == syscall.ERROR_INSUFFICIENT_BUFFER {

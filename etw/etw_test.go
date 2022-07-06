@@ -209,7 +209,8 @@ func TestEventMapInfo(t *testing.T) {
 		"Microsoft-Windows-ProcessStateManager",
 		"Microsoft-Windows-DNS-Client",
 		"Microsoft-Windows-Win32k",
-		"Microsoft-Windows-RPC"}
+		"Microsoft-Windows-RPC",
+		"Microsoft-Windows-Kernel-IoTrace"}
 
 	for _, c := range mapInfoChannels {
 		prov, err := ParseProvider(c)
@@ -247,6 +248,9 @@ func TestEventMapInfo(t *testing.T) {
 			}
 		}
 
+		// don't skip events with related activity ID
+		erh.Flags.Skip = erh.EventRec.RelatedActivityID() == nullGUIDStr
+
 		return fakeError
 	}
 
@@ -265,6 +269,9 @@ func TestEventMapInfo(t *testing.T) {
 
 			_, err := json.Marshal(&e)
 			tt.CheckErr(err)
+			if e.System.Correlation.ActivityID != nullGUIDStr && e.System.Correlation.RelatedActivityID != nullGUIDStr {
+				t.Logf("Provider=%s ActivityID=%s RelatedActivityID=%s", e.System.Provider.Name, e.System.Correlation.ActivityID, e.System.Correlation.RelatedActivityID)
+			}
 			//t.Log(string(b))
 		}
 	}()
