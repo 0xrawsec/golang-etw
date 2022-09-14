@@ -172,7 +172,7 @@ func (s *Stats) Show() {
 		sort.Sort(ids)
 		// Printing output
 		chanEps := float64(chanCount) / delta
-		fmt.Printf("%s%d (%.2f EPS)\n", c, chanCount, chanEps)
+		fmt.Printf("%s: %d (%.2f EPS)\n", c, chanCount, chanEps)
 		for _, id := range ids {
 			count := s.s[c][uint16(id)]
 			eps := float64(count) / delta
@@ -192,6 +192,7 @@ func main() {
 		set                 bool
 		noout               bool
 		fstats              bool
+		filemon             bool
 		attach              string
 		regex               string
 		outfile             string
@@ -219,6 +220,7 @@ func main() {
 	flag.BoolVar(&listProviders, "lp", listProviders, "List providers")
 	flag.BoolVar(&noout, "noout", noout, "Do not write logs")
 	flag.BoolVar(&fstats, "stats", fstats, "Show statistics about events")
+	flag.BoolVar(&filemon, "filemon", filemon, "Monitor file read/writes")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "%s\n%s\n", copyright, license)
 		fmt.Fprintf(os.Stderr, "Version: %s (commit: %s)\n\n", version, commitID)
@@ -343,13 +345,20 @@ func main() {
 			kernelTraceFlags |= etw.GetKernelProviderFlags(provStr)
 		} else {
 			if prov, err := etw.ParseProvider(provStr); err != nil {
-				log.Errorf("Failed to parse provider: %s", provStr)
+				log.Errorf("Failed to parse provider %s: %s", provStr, err)
 			} else {
 				log.Debugf("Enabling provider: %s", provStr)
 				if err := p.EnableProvider(prov); err != nil {
 					log.Errorf("Failed to enable provider %s: %s", provStr, err)
 				}
 			}
+		}
+	}
+
+	if filemon {
+		log.Debugf("Enabling provider: %s", FilemonProvider)
+		if err := p.EnableProvider(etw.MustParseProvider(FilemonProvider)); err != nil {
+			log.Errorf("Failed to enable provider %s: %s", FilemonProvider, err)
 		}
 	}
 
@@ -384,6 +393,15 @@ func main() {
 		FromTraceNames(sessions...)
 
 	c.InitFilters(p.Providers())
+
+	if filemon {
+		c.PreparedCallback = filemonPreparedCB
+		if cregex != nil {
+			filemonRegex = cregex
+			// don't use it to filter events
+			cregex = nil
+		}
+	}
 
 	if err := c.Start(); err != nil {
 		log.Abort(1, "Failed to start traces: %s", err)

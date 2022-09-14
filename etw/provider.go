@@ -30,6 +30,32 @@ type Provider struct {
 	Filter          []uint16
 }
 
+// IsZero returns true if the provider is empty
+func (p *Provider) IsZero() bool {
+	return p.GUID == ""
+}
+
+func (p *Provider) eventIDFilterDescriptor() (d EventFilterDescriptor) {
+
+	efeid := AllocEventFilterEventID(p.Filter)
+	efeid.FilterIn = 0x1
+
+	d = EventFilterDescriptor{
+		Ptr:  uint64(uintptr(unsafe.Pointer(efeid))),
+		Size: uint32(efeid.Size()),
+		Type: EVENT_FILTER_TYPE_EVENT_ID,
+	}
+
+	return
+}
+
+func (p *Provider) BuildFilterDesc() (fd []EventFilterDescriptor) {
+
+	fd = append(fd, p.eventIDFilterDescriptor())
+
+	return
+}
+
 // MustParseProvider parses a provider string or panic
 func MustParseProvider(s string) (p Provider) {
 	var err error
@@ -37,6 +63,12 @@ func MustParseProvider(s string) (p Provider) {
 		panic(err)
 	}
 	return
+}
+
+// IsKnownProvider returns true if the provider is known
+func IsKnownProvider(p string) bool {
+	prov := ResolveProvider(p)
+	return !prov.IsZero()
 }
 
 // ParseProvider parses a string and returns a provider.
@@ -109,11 +141,6 @@ func ParseProvider(s string) (p Provider, err error) {
 		}
 	}
 	return
-}
-
-// IsZero returns true if the provider is empty
-func (p *Provider) IsZero() bool {
-	return p.GUID == ""
 }
 
 // EnumerateProviders returns a ProviderMap containing available providers

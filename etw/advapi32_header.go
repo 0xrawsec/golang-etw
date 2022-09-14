@@ -280,7 +280,17 @@ const (
 	EVENT_HEADER_EXT_TYPE_STACK_TRACE64      = 0x0006
 	EVENT_HEADER_EXT_TYPE_PEBS_INDEX         = 0x0007
 	EVENT_HEADER_EXT_TYPE_PMC_COUNTERS       = 0x0008
-	EVENT_HEADER_EXT_TYPE_MAX                = 0x0009
+	EVENT_HEADER_EXT_TYPE_PSM_KEY            = 0x0009
+	EVENT_HEADER_EXT_TYPE_EVENT_KEY          = 0x000A
+	EVENT_HEADER_EXT_TYPE_EVENT_SCHEMA_TL    = 0x000B
+	EVENT_HEADER_EXT_TYPE_PROV_TRAITS        = 0x000C
+	EVENT_HEADER_EXT_TYPE_PROCESS_START_KEY  = 0x000D
+	EVENT_HEADER_EXT_TYPE_CONTROL_GUID       = 0x000E
+	EVENT_HEADER_EXT_TYPE_QPC_DELTA          = 0x000F
+	EVENT_HEADER_EXT_TYPE_CONTAINER_ID       = 0x0010
+	EVENT_HEADER_EXT_TYPE_STACK_KEY32        = 0x0011
+	EVENT_HEADER_EXT_TYPE_STACK_KEY64        = 0x0012
+	EVENT_HEADER_EXT_TYPE_MAX                = 0x0013
 )
 
 //////////////////////////////////////////////////////////////////
@@ -380,7 +390,85 @@ type EnableTraceParameters struct {
 	ControlFlags     uint32
 	SourceId         GUID
 	EnableFilterDesc *EventFilterDescriptor
-	FilterDescrCount uint32
+	FilterDescCount  uint32
+}
+
+const (
+	EVENT_ENABLE_PROPERTY_SID                       = 0x00000001
+	EVENT_ENABLE_PROPERTY_TS_ID                     = 0x00000002
+	EVENT_ENABLE_PROPERTY_STACK_TRACE               = 0x00000004
+	EVENT_ENABLE_PROPERTY_PSM_KEY                   = 0x00000008
+	EVENT_ENABLE_PROPERTY_IGNORE_KEYWORD_0          = 0x00000010
+	EVENT_ENABLE_PROPERTY_PROVIDER_GROUP            = 0x00000020
+	EVENT_ENABLE_PROPERTY_ENABLE_KEYWORD_0          = 0x00000040
+	EVENT_ENABLE_PROPERTY_PROCESS_START_KEY         = 0x00000080
+	EVENT_ENABLE_PROPERTY_EVENT_KEY                 = 0x00000100
+	EVENT_ENABLE_PROPERTY_EXCLUDE_INPRIVATE         = 0x00000200
+	EVENT_ENABLE_PROPERTY_ENABLE_SILOS              = 0x00000400
+	EVENT_ENABLE_PROPERTY_SOURCE_CONTAINER_TRACKING = 0x00000800
+)
+
+const (
+	EVENT_FILTER_TYPE_NONE               = 0x00000000
+	EVENT_FILTER_TYPE_SCHEMATIZED        = 0x80000000 // Provider-side.
+	EVENT_FILTER_TYPE_SYSTEM_FLAGS       = 0x80000001 // Internal use only.
+	EVENT_FILTER_TYPE_TRACEHANDLE        = 0x80000002 // Initiate rundown.
+	EVENT_FILTER_TYPE_PID                = 0x80000004 // Process ID.
+	EVENT_FILTER_TYPE_EXECUTABLE_NAME    = 0x80000008 // EXE file name.
+	EVENT_FILTER_TYPE_PACKAGE_ID         = 0x80000010 // Package ID.
+	EVENT_FILTER_TYPE_PACKAGE_APP_ID     = 0x80000020 // Package Relative App Id (PRAID).
+	EVENT_FILTER_TYPE_PAYLOAD            = 0x80000100 // TDH payload filter.
+	EVENT_FILTER_TYPE_EVENT_ID           = 0x80000200 // Event IDs.
+	EVENT_FILTER_TYPE_EVENT_NAME         = 0x80000400 // Event name (TraceLogging only).
+	EVENT_FILTER_TYPE_STACKWALK          = 0x80001000 // Event IDs for stack.
+	EVENT_FILTER_TYPE_STACKWALK_NAME     = 0x80002000 // Event name for stack (TraceLogging only).
+	EVENT_FILTER_TYPE_STACKWALK_LEVEL_KW = 0x80004000 // Filter stack collection by level and keyword.
+	EVENT_FILTER_TYPE_CONTAINER          = 0x80008000 // Filter by Container ID.
+)
+
+const (
+	MAX_EVENT_FILTER_DATA_SIZE = 1024
+
+	MAX_EVENT_FILTER_EVENT_ID_COUNT = 64
+)
+
+/*
+EVENT_FILTER_EVENT_ID is used to pass EventId filter for
+stack walk filters.
+
+	typedef struct _EVENT_FILTER_EVENT_ID {
+	    BOOLEAN FilterIn;
+	    UCHAR Reserved;
+	    USHORT Count;
+	    USHORT Events[ANYSIZE_ARRAY];
+	} EVENT_FILTER_EVENT_ID, *PEVENT_FILTER_EVENT_ID;
+*/
+type EventFilterEventID struct {
+	FilterIn uint8
+	Reserved uint8
+	Count    uint16
+	// it is easier to implement in Go with a fixed array size
+	Events [1]uint16
+}
+
+func AllocEventFilterEventID(filter []uint16) (f *EventFilterEventID) {
+	count := uint16(len(filter))
+	size := min(4+len(filter)*2, int(unsafe.Sizeof(EventFilterEventID{})))
+	buf := make([]byte, size)
+
+	// buf[0] should always be valid
+	f = (*EventFilterEventID)(unsafe.Pointer(&buf[0]))
+	eid := unsafe.Pointer((&f.Events[0]))
+	for i := 0; i < len(filter); i++ {
+		*((*uint16)(eid)) = filter[i]
+		eid = unsafe.Add(eid, 2)
+	}
+	f.Count = count
+	return
+}
+
+func (e *EventFilterEventID) Size() int {
+	return 4 + int(e.Count)*2
 }
 
 /*
@@ -398,10 +486,10 @@ type EventFilterDescriptor struct {
 }
 
 /*
-typedef struct _FILETIME {
-  DWORD dwLowDateTime;
-  DWORD dwHighDateTime;
-} FILETIME, *PFILETIME, *LPFILETIME;
+	typedef struct _FILETIME {
+	  DWORD dwLowDateTime;
+	  DWORD dwHighDateTime;
+	} FILETIME, *PFILETIME, *LPFILETIME;
 */
 type FileTime struct {
 	dwLowDateTime  uint32
@@ -628,25 +716,25 @@ type EventHeaderExtendedDataItem struct {
 }
 
 /*
-typedef struct _EVENT_HEADER {
-  USHORT           Size;
-  USHORT           HeaderType;
-  USHORT           Flags;
-  USHORT           EventProperty;
-  ULONG            ThreadId;
-  ULONG            ProcessId;
-  LARGE_INTEGER    TimeStamp;
-  GUID             ProviderId;
-  EVENT_DESCRIPTOR EventDescriptor;
-  union {
-    struct {
-      ULONG KernelTime;
-      ULONG UserTime;
-    } DUMMYSTRUCTNAME;
-    ULONG64 ProcessorTime;
-  } DUMMYUNIONNAME;
-  GUID             ActivityId;
-} EVENT_HEADER, *PEVENT_HEADER;
+	typedef struct _EVENT_HEADER {
+	  USHORT           Size;
+	  USHORT           HeaderType;
+	  USHORT           Flags;
+	  USHORT           EventProperty;
+	  ULONG            ThreadId;
+	  ULONG            ProcessId;
+	  LARGE_INTEGER    TimeStamp;
+	  GUID             ProviderId;
+	  EVENT_DESCRIPTOR EventDescriptor;
+	  union {
+	    struct {
+	      ULONG KernelTime;
+	      ULONG UserTime;
+	    } DUMMYSTRUCTNAME;
+	    ULONG64 ProcessorTime;
+	  } DUMMYUNIONNAME;
+	  GUID             ActivityId;
+	} EVENT_HEADER, *PEVENT_HEADER;
 */
 type EventHeader struct {
 	Size            uint16
@@ -670,15 +758,15 @@ func (e *EventHeader) UTCTimeStamp() time.Time {
 }
 
 /*
-typedef struct _EVENT_DESCRIPTOR {
-  USHORT    Id;
-  UCHAR     Version;
-  UCHAR     Channel;
-  UCHAR     Level;
-  UCHAR     Opcode;
-  USHORT    Task;
-  ULONGLONG Keyword;
-} EVENT_DESCRIPTOR, *PEVENT_DESCRIPTOR;
+	typedef struct _EVENT_DESCRIPTOR {
+	  USHORT    Id;
+	  UCHAR     Version;
+	  UCHAR     Channel;
+	  UCHAR     Level;
+	  UCHAR     Opcode;
+	  USHORT    Task;
+	  ULONGLONG Keyword;
+	} EVENT_DESCRIPTOR, *PEVENT_DESCRIPTOR;
 */
 type EventDescriptor struct {
 	Id      uint16
@@ -691,18 +779,18 @@ type EventDescriptor struct {
 }
 
 /*
-typedef struct _EVENT_TRACE {
-  EVENT_TRACE_HEADER Header;
-  ULONG              InstanceId;
-  ULONG              ParentInstanceId;
-  GUID               ParentGuid;
-  PVOID              MofData;
-  ULONG              MofLength;
-  union {
-    ULONG              ClientContext;
-    ETW_BUFFER_CONTEXT BufferContext;
-  } DUMMYUNIONNAME;
-} EVENT_TRACE, *PEVENT_TRACE;
+	typedef struct _EVENT_TRACE {
+	  EVENT_TRACE_HEADER Header;
+	  ULONG              InstanceId;
+	  ULONG              ParentInstanceId;
+	  GUID               ParentGuid;
+	  PVOID              MofData;
+	  ULONG              MofLength;
+	  union {
+	    ULONG              ClientContext;
+	    ETW_BUFFER_CONTEXT BufferContext;
+	  } DUMMYUNIONNAME;
+	} EVENT_TRACE, *PEVENT_TRACE;
 */
 type EventTrace struct {
 	Header           EventTraceHeader

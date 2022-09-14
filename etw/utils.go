@@ -10,6 +10,13 @@ import (
 	"unsafe"
 )
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // UTF16BytesToString transforms a bytes array of UTF16 encoded characters to
 // a Go string
 func UTF16BytesToString(utf16 []byte) string {

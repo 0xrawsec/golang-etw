@@ -5,6 +5,7 @@ package etw
 
 import (
 	"syscall"
+	"unsafe"
 )
 
 const (
@@ -97,6 +98,16 @@ func (p *RealTimeSession) EnableProvider(prov Provider) (err error) {
 
 	params := EnableTraceParameters{
 		Version: 2,
+		// Does not seem to bring valuable information
+		//EnableProperty: EVENT_ENABLE_PROPERTY_PROCESS_START_KEY,
+	}
+
+	if len(prov.Filter) > 0 {
+		fds := prov.BuildFilterDesc()
+		if len(fds) > 0 {
+			params.EnableFilterDesc = (*EventFilterDescriptor)(unsafe.Pointer(&fds[0]))
+			params.FilterDescCount = uint32(len(fds))
+		}
 	}
 
 	if err = EnableTraceEx2(

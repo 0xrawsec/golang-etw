@@ -7,9 +7,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -35,6 +35,15 @@ func randBetween(min, max int) (i int) {
 	for ; i < min; i = rand.Int() % max {
 	}
 	return
+}
+
+func TestIsKnownProvider(t *testing.T) {
+	t.Parallel()
+
+	tt := toast.FromT(t)
+
+	tt.Assert(IsKnownProvider("Microsoft-Windows-Kernel-File"))
+	tt.Assert(!IsKnownProvider("Microsoft-Windows-Unknown-Provider"))
 }
 
 func TestGUID(t *testing.T) {
@@ -66,8 +75,6 @@ func TestGUID(t *testing.T) {
 }
 
 func TestProducerConsumer(t *testing.T) {
-	t.Parallel()
-
 	var prov Provider
 	var err error
 
@@ -129,8 +136,6 @@ func TestProducerConsumer(t *testing.T) {
 }
 
 func TestKernelSession(t *testing.T) {
-	t.Parallel()
-
 	tt := toast.FromT(t)
 	eventCount := 0
 
@@ -187,23 +192,10 @@ func TestKernelSession(t *testing.T) {
 }
 
 func TestEventMapInfo(t *testing.T) {
-	t.Parallel()
-
 	tt := toast.FromT(t)
 	eventCount := 0
 
 	prod := NewRealTimeSession("GolangTest")
-
-	/*i := 0
-	for _, prov := range EnumerateProviders() {
-		if i == 64 {
-			break
-		}
-		t.Logf("enabling: %s", prov.Name)
-		//tt.CheckErr(prod.EnableProvider(*prov))
-		prod.EnableProvider(*prov)
-		i++
-	}*/
 
 	mapInfoChannels := []string{
 		"Microsoft-Windows-ProcessStateManager",
@@ -213,6 +205,7 @@ func TestEventMapInfo(t *testing.T) {
 		"Microsoft-Windows-Kernel-IoTrace"}
 
 	for _, c := range mapInfoChannels {
+		t.Log(c)
 		prov, err := ParseProvider(c)
 		tt.CheckErr(err)
 		tt.CheckErr(prod.EnableProvider(prov))
@@ -293,8 +286,6 @@ func TestEventMapInfo(t *testing.T) {
 }
 
 func TestConsumerCallbacks(t *testing.T) {
-	t.Parallel()
-
 	var prov Provider
 	var err error
 
@@ -341,7 +332,6 @@ func TestConsumerCallbacks(t *testing.T) {
 
 	fileObjectMapping := make(map[string]*file)
 	c.PreparedCallback = func(h *EventRecordHelper) error {
-
 		tt.Assert(h.Provider() == prov.Name)
 		tt.Assert(h.ProviderGUID() == prov.GUID)
 		tt.Assert(h.Channel() == kernelFileProviderChannel)
@@ -426,7 +416,9 @@ func TestConsumerCallbacks(t *testing.T) {
 	// starting consumer
 	tt.CheckErr(c.Start())
 
-	testfile := `\Windows\Temp\test.txt`
+	//testfile := `\Windows\Temp\test.txt`
+	testfile := filepath.Join(t.TempDir()[2:], "test.txt")
+	t.Logf("testfile: %s", testfile)
 
 	start := time.Now()
 	var etwread int
@@ -449,7 +441,7 @@ func TestConsumerCallbacks(t *testing.T) {
 					break
 				}
 
-				if !strings.HasSuffix(fn, testfile) {
+				if !strings.Contains(fn, testfile) {
 					break
 				}
 
@@ -470,10 +462,11 @@ func TestConsumerCallbacks(t *testing.T) {
 	nReadWrite := 0
 	tf := fmt.Sprintf("C:%s", testfile)
 	for ; nReadWrite < randBetween(800, 1000); nReadWrite++ {
-		os.Remove(tf)
-		tt.CheckErr(ioutil.WriteFile(tf, []byte("testdata"), 7777))
-		_, err = ioutil.ReadFile(tf)
+		tmp := fmt.Sprintf("%s.%d", tf, nReadWrite)
+		tt.CheckErr(os.WriteFile(tmp, []byte("testdata"), 7777))
+		_, err = os.ReadFile(tmp)
 		tt.CheckErr(err)
+		time.Sleep(time.Millisecond)
 	}
 
 	d := time.Duration(0)
@@ -487,11 +480,12 @@ func TestConsumerCallbacks(t *testing.T) {
 	}
 
 	// wait a couple of seconds more to see if we get more events
-	time.Sleep(3 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	// stopping consumer
 	tt.CheckErr(c.Stop())
 
+	tt.Assert(eventCount != 0, "did not receive any event")
 	tt.Assert(c.Skipped == 0)
 	// verifying that we caught all events
 	t.Logf("read=%d etwread=%d", nReadWrite, etwread)

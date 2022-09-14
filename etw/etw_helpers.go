@@ -125,14 +125,13 @@ type EventRecordHelper struct {
 	ArrayProperties map[string][]*Property
 	Structures      []map[string]*Property
 
-	//EnableParsing bool
-
 	Flags struct {
 		Skip      bool
 		Skippable bool
 	}
 
-	userDataIt uintptr
+	userDataIt         uintptr
+	selectedProperties map[string]bool
 }
 
 func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
@@ -149,6 +148,7 @@ func (e *EventRecordHelper) initialize() {
 	e.Properties = make(map[string]*Property)
 	e.ArrayProperties = make(map[string][]*Property)
 	e.Structures = make([]map[string]*Property, 0)
+	e.selectedProperties = make(map[string]bool)
 
 	e.userDataIt = e.EventRec.UserData
 }
@@ -368,19 +368,6 @@ func (e *EventRecordHelper) prepareProperties() (last error) {
 	return
 }
 
-func (e *EventRecordHelper) parseExtendedData(i uint16) string {
-
-	item := e.EventRec.ExtendedDataItem(i)
-
-	switch item.ExtType {
-	case EVENT_HEADER_EXT_TYPE_RELATED_ACTIVITYID:
-		g := (*GUID)(unsafe.Pointer(item.DataPtr))
-		return g.String()
-	default:
-		return "not parsed"
-	}
-}
-
 func (e *EventRecordHelper) buildEvent() (event *Event, err error) {
 	event = NewEvent()
 
@@ -447,28 +434,90 @@ func (e *EventRecordHelper) parseAndSetProperty(name string, out *Event) (err er
 	return
 }
 
+func (e *EventRecordHelper) shouldParse(name string) bool {
+	if len(e.selectedProperties) == 0 {
+		return true
+	}
+	_, ok := e.selectedProperties[name]
+	return ok
+}
+
 func (e *EventRecordHelper) parseAndSetAllProperties(out *Event) (last error) {
+	var err error
 
-	for pname := range e.Properties {
-		if err := e.parseAndSetProperty(pname, out); err != nil {
+	eventData := out.EventData
+
+	// it is a user data property
+	if (e.TraceInfo.Flags & TEMPLATE_USER_DATA) == TEMPLATE_USER_DATA {
+		eventData = out.UserData
+	}
+
+	// Properties
+	for pname, p := range e.Properties {
+		if !e.shouldParse(pname) {
+			continue
+		}
+		/*if err := e.parseAndSetProperty(pname, out); err != nil {
 			last = err
+		}*/
+		if eventData[p.name], err = p.Value(); err != nil {
+			last = fmt.Errorf("%w %s: %s", ErrPropertyParsing, p.name, err)
 		}
 	}
 
-	for pname := range e.ArrayProperties {
-		if err := e.parseAndSetProperty(pname, out); err != nil {
-			last = err
+	// Arrays
+	for pname, props := range e.ArrayProperties {
+		if !e.shouldParse(pname) {
+			continue
 		}
+
+		values := make([]string, len(props))
+
+		// iterate over the properties
+		for _, p := range props {
+			var v string
+			if v, err = p.Value(); err != nil {
+				last = fmt.Errorf("%w array %s: %s", ErrPropertyParsing, pname, err)
+			}
+
+			values = append(values, v)
+		}
+
+		eventData[pname] = values
 	}
 
-	if err := e.parseAndSetProperty(StructurePropertyName, out); err != nil {
-		last = err
+	// Structure
+	if !e.shouldParse(StructurePropertyName) {
+		return
+	}
+
+	if len(e.Structures) > 0 {
+		structs := make([]map[string]string, len(e.Structures))
+		for _, m := range e.Structures {
+			s := make(map[string]string)
+			for field, prop := range m {
+				if s[field], err = prop.Value(); err != nil {
+					last = fmt.Errorf("%w %s.%s: %s", ErrPropertyParsing, StructurePropertyName, field, err)
+				}
+			}
+		}
+
+		eventData[StructurePropertyName] = structs
 	}
 
 	return
 }
 
 /** Public methods **/
+
+// SelectFields selects the properties that will be parsed and populated
+// in the parsed ETW event. If this method is not called, all properties will
+// be parsed and put in the event.
+func (e *EventRecordHelper) SelectFields(names ...string) {
+	for _, n := range names {
+		e.selectedProperties[n] = true
+	}
+}
 
 func (e *EventRecordHelper) ProviderGUID() string {
 	return e.TraceInfo.ProviderGUID.String()
