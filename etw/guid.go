@@ -74,6 +74,7 @@ func ParseGUID(guid string) (g *GUID, err error) {
 	}
 	guid = strings.Trim(guid, "{}")
 	sp := strings.Split(guid, "-")
+
 	if u, err = strconv.ParseUint(sp[0], 16, 32); err != nil {
 		return
 	}

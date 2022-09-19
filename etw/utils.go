@@ -10,11 +10,11 @@ import (
 	"unsafe"
 )
 
-func min(a, b int) int {
+func max(a, b int) int {
 	if a < b {
-		return a
+		return b
 	}
-	return b
+	return a
 }
 
 // UTF16BytesToString transforms a bytes array of UTF16 encoded characters to

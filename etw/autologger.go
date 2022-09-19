@@ -4,9 +4,13 @@
 package etw
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -15,9 +19,10 @@ const (
 	AutologgerPath = `HKLM\System\CurrentControlSet\Control\WMI\Autologger`
 	regExe         = `C:\Windows\System32\reg.exe`
 
-	regDword = "REG_DWORD"
-	regQword = "REG_QWORD"
-	regSz    = "REG_SZ"
+	regDword  = "REG_DWORD"
+	regQword  = "REG_QWORD"
+	regSz     = "REG_SZ"
+	regBinary = "REG_BINARY"
 )
 
 func hexStr(i interface{}) string {
@@ -56,6 +61,14 @@ func (a *AutoLogger) Create() (err error) {
 	return
 }
 
+func binaryFilter(filter []uint16) (f string, err error) {
+	buf := new(bytes.Buffer)
+	if err = binary.Write(buf, binary.LittleEndian, filter); err != nil {
+		return
+	}
+	return hex.EncodeToString(buf.Bytes()), nil
+}
+
 func (a *AutoLogger) EnableProvider(p Provider) (err error) {
 	path := fmt.Sprintf(`%s\%s`, a.Path(), p.GUID)
 
@@ -74,11 +87,25 @@ func (a *AutoLogger) EnableProvider(p Provider) (err error) {
 		sargs = append(sargs, []string{path, "MatchAllKeyword", regQword, hexStr(p.MatchAllKeyword)})
 	}
 
+	// enable event filtering
+	if len(p.Filter) > 0 {
+		var binFilter string
+		if binFilter, err = binaryFilter(p.Filter); err != nil {
+			return fmt.Errorf("failed to create binary filter: %w", err)
+		}
+		filtersPath := filepath.Join(path, "Filters")
+		sargs = append(sargs, []string{filtersPath, "Enabled", regDword, "0x1"})
+		sargs = append(sargs, []string{filtersPath, "EventIdFilterIn", regDword, "0x1"})
+		sargs = append(sargs, []string{filtersPath, "EventIds", regBinary, binFilter})
+	}
+
+	// executing commands
 	for _, args := range sargs {
 		if err = regAddValue(args[0], args[1], args[2], args[3]); err != nil {
 			return
 		}
 	}
+
 	return
 }
 

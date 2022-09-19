@@ -310,7 +310,7 @@ func TestConsumerCallbacks(t *testing.T) {
 	// Consumer part
 	c := NewRealTimeConsumer(context.Background()).FromSessions(prod).FromTraceNames(EventlogSecurity)
 
-	c.EventRecordCallback = func(erh *EventRecordHelper) (err error) {
+	c.EventRecordHelperCallback = func(erh *EventRecordHelper) (err error) {
 
 		switch erh.EventID() {
 		case 12, 14, 15, 16:

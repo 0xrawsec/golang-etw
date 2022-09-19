@@ -453,7 +453,7 @@ type EventFilterEventID struct {
 
 func AllocEventFilterEventID(filter []uint16) (f *EventFilterEventID) {
 	count := uint16(len(filter))
-	size := min(4+len(filter)*2, int(unsafe.Sizeof(EventFilterEventID{})))
+	size := max(4+len(filter)*2, int(unsafe.Sizeof(EventFilterEventID{})))
 	buf := make([]byte, size)
 
 	// buf[0] should always be valid

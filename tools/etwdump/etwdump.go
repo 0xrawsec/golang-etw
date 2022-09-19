@@ -236,6 +236,13 @@ func main() {
 		log.SetLogLevel(log.LDebug)
 	}
 
+	providers := flag.Args()
+	if filemon {
+		if len(attach) == 0 {
+			providers = []string{FilemonKernelProcessProvider, FilemonProvider}
+		}
+	}
+
 	log.Debugf("PID: %d", os.Getpid())
 
 	// list kernel providers
@@ -280,14 +287,15 @@ func main() {
 
 	if access {
 		if set {
-			for _, provider := range flag.Args() {
+			for _, provider := range providers {
 				setAccess(providerOrFail(provider).GUID)
 			}
 		}
 
 		fmt.Println("Listing access rights")
-		for _, provider := range flag.Args() {
-			fmt.Printf("%s: %s\n", provider, getAccessString(providerOrFail(provider).GUID))
+		for _, provider := range providers {
+			//fmt.Printf("%s: %s\n", provider, getAccessString(providerOrFail(provider).GUID))
+			fmt.Printf("%s: %s\n", provider, getAccessString(provider))
 		}
 		os.Exit(0)
 	}
@@ -314,7 +322,7 @@ func main() {
 			a.Create()
 		}
 
-		for _, provider := range flag.Args() {
+		for _, provider := range providers {
 			var p etw.Provider
 			var err error
 			if etw.IsKernelProvider(provider) {
@@ -338,7 +346,7 @@ func main() {
 	p := etw.NewRealTimeSession(sessionName)
 
 	// We process the providers provided in the command line
-	for _, provStr := range flag.Args() {
+	for _, provStr := range providers {
 		// this is a kernel provider
 		if etw.IsKernelProvider(provStr) {
 			log.Debugf("Enabling kernel provider: %s", provStr)
@@ -352,13 +360,6 @@ func main() {
 					log.Errorf("Failed to enable provider %s: %s", provStr, err)
 				}
 			}
-		}
-	}
-
-	if filemon {
-		log.Debugf("Enabling provider: %s", FilemonProvider)
-		if err := p.EnableProvider(etw.MustParseProvider(FilemonProvider)); err != nil {
-			log.Errorf("Failed to enable provider %s: %s", FilemonProvider, err)
 		}
 	}
 
@@ -395,6 +396,8 @@ func main() {
 	c.InitFilters(p.Providers())
 
 	if filemon {
+		c.EventRecordCallback = filemonEventRecordCB
+
 		c.PreparedCallback = filemonPreparedCB
 		if cregex != nil {
 			filemonRegex = cregex

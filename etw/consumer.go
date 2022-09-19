@@ -41,12 +41,17 @@ type Consumer struct {
 	lastError    error
 	closed       bool
 
-	// Callback which executes at a very early stage
-	// It can be used to early filter out events.
-	// Filtering events in this method have a very low overhead
-	// as almost no processing happened yet. To filter out some
-	// events call Skip method of EventRecordHelper
-	EventRecordCallback func(*EventRecordHelper) error
+	// First callback executed, it allows to filter out events
+	// based on fields of raw ETW EventRecord structure. When this callback
+	// returns true event processing will continue, otherwise it is aborted.
+	// Filtering out events here has the lowest overhead.
+	EventRecordCallback func(*EventRecord) bool
+
+	// Callback which executes after TraceEventInfo is parsed.
+	// To filter out some events call Skip method of EventRecordHelper
+	// As Properties are not parsed yet, trying to get/set Properties is
+	// not possible and might cause unexpected behaviours.
+	EventRecordHelperCallback func(*EventRecordHelper) error
 
 	// Callback executed after event properties got prepared (step before parsing).
 	// Properties are not parsed yet and this is the right place to filter
@@ -76,7 +81,7 @@ func NewRealTimeConsumer(ctx context.Context) (c *Consumer) {
 	}
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
-	c.EventRecordCallback = c.DefaultEventRecordCallback
+	c.EventRecordHelperCallback = c.DefaultEventRecordCallback
 	c.EventCallback = c.DefaultEventCallback
 
 	return c
@@ -95,11 +100,18 @@ func (c *Consumer) bufferCallback(e *EventTraceLogfile) uintptr {
 func (c *Consumer) callback(er *EventRecord) (rc uintptr) {
 	var event *Event
 
+	// calling EventHeaderCallback if possible
+	if c.EventRecordCallback != nil {
+		if !c.EventRecordCallback(er) {
+			return
+		}
+	}
+
 	// we get the consumer from user context
 	if h, err := newEventRecordHelper(er); err == nil {
 
-		if c.EventRecordCallback != nil {
-			if err = c.EventRecordCallback(h); err != nil {
+		if c.EventRecordHelperCallback != nil {
+			if err = c.EventRecordHelperCallback(h); err != nil {
 				c.lastError = err
 			}
 		}
