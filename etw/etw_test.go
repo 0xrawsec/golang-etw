@@ -46,33 +46,6 @@ func TestIsKnownProvider(t *testing.T) {
 	tt.Assert(!IsKnownProvider("Microsoft-Windows-Unknown-Provider"))
 }
 
-func TestGUID(t *testing.T) {
-	t.Parallel()
-
-	var g *GUID
-	var err error
-
-	tt := toast.FromT(t)
-
-	// with curly brackets
-	guid := "{45d8cccd-539f-4b72-a8b7-5c683142609a}"
-	g, err = ParseGUID(guid)
-	tt.CheckErr(err)
-	tt.Assert(!g.IsZero())
-	tt.Assert(strings.EqualFold(guid, g.String()))
-
-	guid = "54849625-5478-4994-a5ba-3e3b0328c30d"
-	g, err = ParseGUID(guid)
-	tt.CheckErr(err)
-	tt.Assert(!g.IsZero())
-	tt.Assert(strings.EqualFold(fmt.Sprintf("{%s}", guid), g.String()))
-
-	guid = "00000000-0000-0000-0000-000000000000"
-	g, err = ParseGUID(guid)
-	tt.CheckErr(err)
-	tt.Assert(g.IsZero())
-	tt.Assert(strings.EqualFold(fmt.Sprintf("{%s}", guid), g.String()))
-}
 
 func TestProducerConsumer(t *testing.T) {
 	var prov Provider

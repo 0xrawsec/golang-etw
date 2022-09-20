@@ -14,6 +14,10 @@ const (
 	nullGUIDStr = "{00000000-0000-0000-0000-000000000000}"
 )
 
+var (
+	nullGUID = GUID{}
+)
+
 /*
 typedef struct _GUID {
 	DWORD Data1;
@@ -33,12 +37,7 @@ type GUID struct {
 
 // IsZero checks if GUID is all zeros
 func (g *GUID) IsZero() bool {
-	for _, b := range g.Data4 {
-		if b != 0 {
-			return false
-		}
-	}
-	return g.Data1 == 0 && g.Data2 == 0 && g.Data3 == 0
+	return g.Equals(&nullGUID)
 }
 
 func (g *GUID) String() string {
@@ -48,6 +47,20 @@ func (g *GUID) String() string {
 		g.Data3,
 		g.Data4[0], g.Data4[1],
 		g.Data4[2], g.Data4[3], g.Data4[4], g.Data4[5], g.Data4[6], g.Data4[7])
+}
+
+func (g *GUID) Equals(other *GUID) bool {
+	return g.Data1 == other.Data1 &&
+		g.Data2 == other.Data2 &&
+		g.Data3 == other.Data3 &&
+		g.Data4[0] == other.Data4[0] &&
+		g.Data4[1] == other.Data4[1] &&
+		g.Data4[2] == other.Data4[2] &&
+		g.Data4[3] == other.Data4[3] &&
+		g.Data4[4] == other.Data4[4] &&
+		g.Data4[5] == other.Data4[5] &&
+		g.Data4[6] == other.Data4[6] &&
+		g.Data4[7] == other.Data4[7]
 }
 
 var (

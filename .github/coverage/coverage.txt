@@ -1,4 +1,4 @@
-ok  	github.com/0xrawsec/golang-etw/etw	47.179s	coverage: 73.1% of statements
+ok  	github.com/0xrawsec/golang-etw/etw	47.407s	coverage: 73.1% of statements
 github.com/0xrawsec/golang-etw/etw/advapi32.go:18:		StartTrace						75.0%
 github.com/0xrawsec/golang-etw/etw/advapi32.go:40:		StopTrace						0.0%
 github.com/0xrawsec/golang-etw/etw/advapi32.go:66:		EnableTraceEx2						75.0%
@@ -50,7 +50,7 @@ github.com/0xrawsec/golang-etw/etw/etw_helpers.go:40:		maxu32							66.7%
 github.com/0xrawsec/golang-etw/etw/etw_helpers.go:47:		Parseable						100.0%
 github.com/0xrawsec/golang-etw/etw/etw_helpers.go:51:		Value							100.0%
 github.com/0xrawsec/golang-etw/etw/etw_helpers.go:62:		parse							57.7%
-github.com/0xrawsec/golang-etw/etw/etw_helpers.go:137:		newEventRecordHelper					80.0%
+github.com/0xrawsec/golang-etw/etw/etw_helpers.go:137:		newEventRecordHelper					100.0%
 github.com/0xrawsec/golang-etw/etw/etw_helpers.go:147:		initialize						100.0%
 github.com/0xrawsec/golang-etw/etw/etw_helpers.go:156:		setEventMetadata					96.0%
 github.com/0xrawsec/golang-etw/etw/etw_helpers.go:188:		endUserData						100.0%
@@ -84,10 +84,11 @@ github.com/0xrawsec/golang-etw/etw/filter.go:29:		matchKey						81.8%
 github.com/0xrawsec/golang-etw/etw/filter.go:60:		NewProviderFilter					100.0%
 github.com/0xrawsec/golang-etw/etw/filter.go:67:		Match							100.0%
 github.com/0xrawsec/golang-etw/etw/filter.go:72:		Update							100.0%
-github.com/0xrawsec/golang-etw/etw/guid.go:35:			IsZero							100.0%
-github.com/0xrawsec/golang-etw/etw/guid.go:44:			String							100.0%
-github.com/0xrawsec/golang-etw/etw/guid.go:58:			MustParseGUIDFromString					75.0%
-github.com/0xrawsec/golang-etw/etw/guid.go:67:			ParseGUID						82.8%
+github.com/0xrawsec/golang-etw/etw/guid.go:39:			IsZero							100.0%
+github.com/0xrawsec/golang-etw/etw/guid.go:43:			String							100.0%
+github.com/0xrawsec/golang-etw/etw/guid.go:52:			Equals							100.0%
+github.com/0xrawsec/golang-etw/etw/guid.go:71:			MustParseGUIDFromString					75.0%
+github.com/0xrawsec/golang-etw/etw/guid.go:80:			ParseGUID						82.8%
 github.com/0xrawsec/golang-etw/etw/kernel_providers.go:132:	IsKernelProvider					75.0%
 github.com/0xrawsec/golang-etw/etw/kernel_providers.go:141:	GetKernelProviderFlags					100.0%
 github.com/0xrawsec/golang-etw/etw/producer.go:32:		NewRealTimeSession					100.0%
