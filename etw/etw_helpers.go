@@ -137,6 +137,7 @@ type EventRecordHelper struct {
 func newEventRecordHelper(er *EventRecord) (erh *EventRecordHelper, err error) {
 	erh = &EventRecordHelper{}
 	erh.EventRec = er
+
 	if erh.TraceInfo, err = er.GetEventInformation(); err != nil {
 		return
 	}

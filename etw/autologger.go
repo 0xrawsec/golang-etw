@@ -35,6 +35,12 @@ type AutoLogger struct {
 	LogFileMode uint32
 	BufferSize  uint32
 	ClockType   uint32
+	// MaxFileSize is the maximum file size of the log file, in megabytes.
+	// If a real time session with RealtimePersistence this is the maximum file size of the backup file.
+	// If not set the default is 100MB, to specify no limit this parameter must be 0 in the registry.
+	// But here 0 means that we want don't want to configure MaxFileSize, if we want to set it, this
+	// member needs to be explicitely set > 0
+	MaxFileSize uint32
 }
 
 func (a *AutoLogger) Path() string {
@@ -50,6 +56,10 @@ func (a *AutoLogger) Create() (err error) {
 		// ETWevent can be up to 64KB so buffer needs to be at least this size
 		{a.Path(), "BufferSize", regDword, hexStr(a.BufferSize)},
 		{a.Path(), "ClockType", regDword, hexStr(a.ClockType)},
+	}
+
+	if a.MaxFileSize > 0 {
+		sargs = append(sargs, []string{a.Path(), "MaxFileSize", regDword, hexStr(a.MaxFileSize)})
 	}
 
 	for _, args := range sargs {

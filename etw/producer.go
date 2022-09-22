@@ -11,7 +11,10 @@ import (
 const (
 	NtKernelLogger = "NT Kernel Logger"
 	//  0x9e814aad, 0x3204, 0x11d2, 0x9a, 0x82, 0x00, 0x60, 0x08, 0xa8, 0x69, 0x39
-	SystemTraceControlGuid = "{9E814AAD-3204-11D2-9A82-006008A86939}"
+)
+
+var (
+	systemTraceControlGuid = MustParseGUIDFromString("{9E814AAD-3204-11D2-9A82-006008A86939}")
 )
 
 type Session interface {
@@ -42,7 +45,7 @@ func NewRealTimeSession(name string) (p *RealTimeSession) {
 func NewKernelRealTimeSession(flags ...uint32) (p *RealTimeSession) {
 	p = NewRealTimeSession(NtKernelLogger)
 	// guid must be set for Kernel Session
-	p.properties.Wnode.Guid = *MustParseGUIDFromString(SystemTraceControlGuid)
+	p.properties.Wnode.Guid = *systemTraceControlGuid
 	for _, flag := range flags {
 		p.properties.EnableFlags |= flag
 	}

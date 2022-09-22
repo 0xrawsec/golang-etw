@@ -316,6 +316,7 @@ func main() {
 			LogFileMode: 0x8001c0,
 			BufferSize:  64,
 			ClockType:   2,
+			MaxFileSize: 200,
 		}
 
 		if !a.Exists() {

@@ -11,6 +11,10 @@ import (
 	"syscall"
 )
 
+var (
+	rtLostEventGuid = MustParseGUIDFromString("{6A399AE0-4BC6-4DE9-870B-3657F8947E7E}")
+)
+
 // SessionSlice converts a slice of structures implementing Session
 // to a slice of Session.
 func SessionSlice(i interface{}) (out []Session) {
@@ -67,6 +71,8 @@ type Consumer struct {
 	Filter EventFilter
 	Events chan *Event
 
+	LostEvents uint64
+
 	Skipped uint64
 }
 
@@ -99,6 +105,10 @@ func (c *Consumer) bufferCallback(e *EventTraceLogfile) uintptr {
 
 func (c *Consumer) callback(er *EventRecord) (rc uintptr) {
 	var event *Event
+
+	if er.EventHeader.ProviderId.Equals(rtLostEventGuid) {
+		c.LostEvents++
+	}
 
 	// calling EventHeaderCallback if possible
 	if c.EventRecordCallback != nil {

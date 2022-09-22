@@ -46,7 +46,6 @@ func TestIsKnownProvider(t *testing.T) {
 	tt.Assert(!IsKnownProvider("Microsoft-Windows-Unknown-Provider"))
 }
 
-
 func TestProducerConsumer(t *testing.T) {
 	var prov Provider
 	var err error
@@ -258,6 +257,51 @@ func TestEventMapInfo(t *testing.T) {
 	tt.ExpectErr(c.Err(), fakeError)
 }
 
+func TestLostEvents(t *testing.T) {
+
+	tt := toast.FromT(t)
+
+	// Producer part
+	prod := NewRealTimeSession("GolangTest")
+	// small buffer size on purpose to trigger event loss
+	prod.properties.BufferSize = 1
+
+	prov, err := ParseProvider("Microsoft-Windows-Kernel-Memory" + ":0xff")
+	tt.CheckErr(err)
+	// enabling provider
+	tt.CheckErr(prod.EnableProvider(prov))
+	defer prod.Stop()
+
+	// Consumer part
+	c := NewRealTimeConsumer(context.Background()).FromSessions(prod).FromTraceNames(EventlogSecurity)
+	// we have to declare a func otherwise c.Stop does not seem to be called
+	defer func() { tt.CheckErr(c.Stop()) }()
+
+	// starting consumer
+	tt.CheckErr(c.Start())
+	cnt := uint64(0)
+	go func() {
+		for range c.Events {
+			cnt++
+		}
+	}()
+	time.Sleep(20 * time.Second)
+	tt.CheckErr(c.Stop())
+	time.Sleep(5 * time.Second)
+	t.Logf("Events received: %d", cnt)
+	t.Logf("Events lost: %d", c.LostEvents)
+	tt.Assert(c.LostEvents > 0)
+}
+
+func jsonStr(i interface{}) string {
+	var b []byte
+	var err error
+	if b, err = json.Marshal(i); err != nil {
+		panic(err)
+	}
+	return string(b)
+}
+
 func TestConsumerCallbacks(t *testing.T) {
 	var prov Provider
 	var err error
@@ -277,6 +321,7 @@ func TestConsumerCallbacks(t *testing.T) {
 	// checking producer is running
 	tt.Assert(prod.IsStarted())
 	kernelFileProviderChannel := prov.Name + "/Analytic"
+	kernelProviderGUID := MustParseGUIDFromString(prov.GUID)
 
 	defer prod.Stop()
 
@@ -307,6 +352,8 @@ func TestConsumerCallbacks(t *testing.T) {
 	c.PreparedCallback = func(h *EventRecordHelper) error {
 		tt.Assert(h.Provider() == prov.Name)
 		tt.Assert(h.ProviderGUID() == prov.GUID)
+		tt.Assert(h.EventRec.EventHeader.ProviderId.Equals(kernelProviderGUID))
+		tt.Assert(h.TraceInfo.ProviderGUID.Equals(kernelProviderGUID))
 		tt.Assert(h.Channel() == kernelFileProviderChannel)
 
 		switch h.EventID() {
@@ -383,7 +430,7 @@ func TestConsumerCallbacks(t *testing.T) {
 		return nil
 	}
 
-	// we have to declare a func otherwise c.Stop seems to be called
+	// we have to declare a func otherwise c.Stop does not seem to be called
 	defer func() { tt.CheckErr(c.Stop()) }()
 
 	// starting consumer
